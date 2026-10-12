@@ -1,0 +1,303 @@
+2<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IGH Market</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="ighmarket logo2.png">
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="brand">
+            <img src="ighmarket logo2.png" alt="IGH Market Logo" class="logo-soft-edge">
+            <h1>IGH Market</h1>
+        </div>
+        <button id="nav-sell-header" class="sell-btn-header">Post Item</button>
+    </header>
+
+    <main>
+        <!-- HOME -->
+        <section id="browse-section" class="view-section">
+          <div class="banner feed-banner">
+    <div>
+        <h2>Your Feed</h2>
+        <p>Buy and sell with students around you.</p>
+    </div>
+    <div class="feed-menu-wrap">
+        <button id="feed-menu-btn" class="dots-btn" aria-label="Choose feed" aria-expanded="false">
+            <span></span><span></span><span></span>
+        </button>
+        <div id="feed-menu" class="feed-menu" style="display: none;">
+            <button class="feed-option active" data-tab="explore">Explore</button>
+            <button class="feed-option" data-tab="foryou">For You</button>
+            <button class="feed-option" data-tab="following">Following</button>
+        </div>
+    </div>
+</div>
+                        <div class="filter-wrap" data-scope="home"></div>
+            <div id="listings-grid" class="grid"></div>
+        </section>
+
+                <!-- CATEGORY -->
+        <section id="category-section" class="view-section" style="display: none;">
+
+            <!-- Tiles -->
+            <div id="category-home">
+                <div class="banner">
+                    <h2>Browse by Category</h2>
+                    <p>Pick a category to see what's available.</p>
+                </div>
+                <div class="tile-grid">
+                    <button type="button" class="cat-tile" data-cat="appliances"><span class="tile-icon">🔌</span><span class="tile-name">Appliances</span></button>
+                    <button type="button" class="cat-tile" data-cat="furniture"><span class="tile-icon">🛋️</span><span class="tile-name">Furniture</span></button>
+                    <button type="button" class="cat-tile" data-cat="clothing"><span class="tile-icon">👗</span><span class="tile-name">Clothing</span></button>
+                    <button type="button" class="cat-tile" data-cat="accessories"><span class="tile-icon">👜</span><span class="tile-name">Accessories</span></button>
+                    <button type="button" class="cat-tile" data-cat="decoration"><span class="tile-icon">🖼️</span><span class="tile-name">Decoration</span></button>
+                </div>
+                <button type="button" class="cat-all" data-cat="all">View all items</button>
+            </div>
+
+            <!-- Items in one category -->
+            <div id="category-results" style="display: none;">
+                <button type="button" id="cat-back" class="back-btn">← Categories</button>
+                <h2 id="cat-title" class="cat-title"></h2>
+                <div class="filter-wrap" data-scope="category"></div>
+                <div id="category-grid" class="grid"></div>
+            </div>
+        </section>
+
+        <!-- WISHLIST -->
+        <section id="wishlist-section" class="view-section" style="display: none;">
+            <div class="banner">
+                <h2>My Wishlist</h2>
+                <p>Items you save will show up here.</p>
+            </div>
+            <div id="wishlist-grid">
+                <div class="empty-state">
+                    <img src="heart (1).png" alt="" class="empty-icon">
+                    <h3>Nothing saved yet</h3>
+                    <p>Tap the heart on an item you like and it will be kept here.</p>
+                    <button id="wishlist-browse" class="primary-btn">Browse Items</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- PROFILE -->
+        <section id="profile-section" class="view-section" style="display: none;">
+
+            <!-- Logged out -->
+<div id="profile-guest">
+    <div class="guest-card">
+        <div class="avatar avatar-blank">
+            <svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.2-8 5v3h16v-3c0-2.8-3.6-5-8-5z"/></svg>
+        </div>
+        <h2>Welcome to IGH Market</h2>
+        <p>Sign in to post items, save favourites and follow sellers.</p>
+        <div class="guest-actions">
+            <button id="show-signin" class="primary-btn">Sign In</button>
+            <button id="show-signup" class="outline-btn">Sign Up</button>
+        </div>
+    </div>
+<div class="info-panels">
+    <details class="info-panel">
+        <summary>About Us</summary>
+        <p>IGH Market is a marketplace where students buy and sell clothes, accessories, furniture, appliances and decoration. Browse items, then chat with the seller directly on WhatsApp.</p>
+    </details>
+    <details class="info-panel">
+        <summary>Contact Us</summary>
+        <p>Questions, problems or feedback? Reach us here:</p>
+        <p><a href="mailto:YOUR_EMAIL">YOUR_EMAIL</a></p>
+        <p><a href="https://wa.me/YOUR_WHATSAPP_NUMBER" target="_blank" rel="noopener">Chat with us on WhatsApp</a></p>
+    </details>
+</div>
+    <div class="form-card" id="auth-card" style="display: none;">
+        <h3 id="auth-title">Sign In</h3>
+        <p id="auth-error" class="form-error"></p>
+        <form id="auth-form">
+        
+                        <div class="form-group signup-only">
+                <label>I want to</label>
+                <div class="type-toggle">
+                    <label class="type-option"><input type="radio" name="account-type" value="client" checked><span>Buy items</span></label>
+                    <label class="type-option"><input type="radio" name="account-type" value="seller"><span>Sell items</span></label>
+                </div>
+            </div>
+            <div class="form-group signup-only">
+                <label for="auth-name" id="auth-name-label">Your Name</label>
+                <input type="text" id="auth-name">
+            </div>
+            <div class="form-group signup-only" id="auth-whatsapp-group">
+                <label for="auth-whatsapp">WhatsApp Number</label>
+                <input type="tel" id="auth-whatsapp" placeholder="08012345678">
+            </div>
+                        <div class="form-group">
+                <label for="auth-email">Email</label>
+                <input type="email" id="auth-email" required>
+            </div>
+            <div class="form-group">
+                <label for="auth-password">Password</label>
+                <input type="password" id="auth-password" required minlength="6">
+            </div>
+            <button type="submit" id="auth-submit" class="primary-btn full">Sign In</button>
+        </form>
+        <p class="auth-switch">
+            <span id="auth-switch-text">New here?</span>
+            <button type="button" id="auth-switch-btn" class="link-btn">Create an account</button>
+        </p>
+    </div>
+</div>
+            <div id="profile-user" style="display: none;">
+
+                <div class="profile-card">
+                    <div class="avatar" id="profile-avatar">IM</div>
+                    <div class="profile-text">
+                        <h2 id="profile-name">My Store</h2>
+                        <span class="tier-badge" id="profile-badge">Free Tier</span>
+                    </div>
+                    <button id="logout-btn" class="logout-btn">Log out</button>
+                </div>
+
+            <div class="stats-row seller-only">
+                <div class="stat"><strong id="stat-listings">0 / 10</strong><span>Listings</span></div>
+                <div class="stat"><strong id="stat-wishlist">0</strong><span>Wishlist</span></div>
+                <div class="stat"><strong id="stat-plan">Free</strong><span>Plan</span></div>
+            </div>
+
+                                    <div class="form-card client-only" id="client-note" style="display: none;">
+                <h3>Want to sell on IGH Market?</h3>
+                <p>This is a buyer account. Become a seller to post items and get contacted on WhatsApp.</p>
+                <button type="button" id="become-seller-btn" class="primary-btn">Become a Seller</button>
+                <form id="become-seller-form" style="display: none; margin-top: 16px;">
+                    <p id="become-seller-error" class="form-error"></p>
+                    <div class="form-group">
+                        <label for="bs-store">Store Name</label>
+                        <input type="text" id="bs-store" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="bs-whatsapp">WhatsApp Number</label>
+                        <input type="tel" id="bs-whatsapp" placeholder="08012345678" required>
+                    </div>
+                    <button type="submit" id="bs-submit" class="primary-btn full">Start Selling</button>
+                </form>
+            </div>
+
+                        <div class="form-card seller-only" id="my-listings-card">
+                <h3>My Listings</h3>
+                <div id="my-listings"></div>
+            </div>
+
+            <div class="form-card seller-only" id="post-form-card">
+                <h3 id="form-title">Post New Listing</h3>
+                <p id="form-error" class="form-error"></p>
+                <form id="upload-form">
+                    <div class="form-group">
+                        <label for="title">Item Title</label>
+                        <input type="text" id="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="category">Category</label>
+                                                <select id="category">
+                            <option value="appliances">Appliances</option>
+                            <option value="furniture">Furniture</option>
+                            <option value="clothing">Clothing</option>
+                            <option value="accessories">Accessories</option>
+                            <option value="decoration">Decoration</option>
+                        </select>
+                    </div>
+                                        <div class="form-group">
+                        <label for="price">Price (₦)</label>
+                        <input type="number" id="price" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="check-row"><input type="checkbox" id="negotiable"> Price is negotiable</label>
+                    </div>
+                    <div class="form-group">
+                        <label for="condition">Condition</label>
+                        <select id="condition">
+                            <option value="new">New</option>
+                            <option value="used" selected>Used</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="location">Location (campus or hostel)</label>
+                        <input type="text" id="location" placeholder="e.g. Block B, Male Hostel 2">
+                    </div>
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <textarea id="description"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="images">Pictures (Max 4)</label>
+                        <input type="file" id="images" accept="image/*" multiple required>
+                    </div>
+                                        <button type="submit" id="submit-btn">Publish to IghMarket</button>
+                    <button type="button" id="cancel-edit" class="outline-btn" style="display: none; width: 100%; margin-top: 10px;">Cancel editing</button>
+                </form>
+            </div>
+
+                       <details class="info-panel" id="settings-panel">
+                <summary>Account Settings</summary>
+                <form id="settings-form">
+                    <p id="settings-msg"></p>
+                    <div class="form-group">
+                        <label for="set-name" id="set-name-label">Name</label>
+                        <input type="text" id="set-name" required>
+                    </div>
+                    <div class="form-group seller-only">
+                        <label for="set-whatsapp">WhatsApp Number</label>
+                        <input type="tel" id="set-whatsapp">
+                    </div>
+                    <button type="submit" id="set-save" class="primary-btn full">Save Changes</button>
+                </form>
+                <form id="password-form" style="margin-top: 18px;">
+                    <p id="password-msg"></p>
+                    <div class="form-group">
+                        <label for="set-password">New Password</label>
+                        <input type="password" id="set-password" minlength="6" required>
+                    </div>
+                    <button type="submit" id="pw-save" class="primary-btn full">Change Password</button>
+                </form>
+            </details>
+
+            </div> <!-- end of profile-user -->
+        </section>
+
+                <!-- ITEM DETAILS -->
+        <section id="detail-section" class="view-section" style="display: none;">
+            <button id="detail-back" class="back-btn">← Back</button>
+            <div id="detail-content"></div>
+        </section>
+
+        <!-- SELLER PAGE -->
+        <section id="seller-section" class="view-section" style="display: none;">
+            <button id="seller-back" class="back-btn">← Back</button>
+            <div id="seller-content"></div>
+        </section>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <a href="#home" id="nav-home" class="nav-item active">
+            <img src="home.png" alt="Home" class="nav-icon">
+            <span>Home</span>
+        </a>
+        <a href="#category" id="nav-category" class="nav-item">
+            <img src="options-lines.png" alt="Category" class="nav-icon">
+            <span>Category</span>
+        </a>
+        <a href="#wishlist" id="nav-wishlist" class="nav-item">
+            <img src="heart (1).png" alt="Wishlist" class="nav-icon">
+            <span>Wishlist</span>
+        </a>
+        <a href="#profile" id="nav-profile" class="nav-item">
+            <img src="user.png" alt="Profile" class="nav-icon">
+            <span>Profile</span>
+        </a>
+    </nav>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
+</body>
+</html>
