@@ -1,3 +1,6 @@
+// Did this visit come from a password reset email? (check before Supabase clears the link)
+const cameFromRecovery = location.hash.includes('type=recovery');
+
 // ---------- Supabase setup (fill these in later) ----------
 const supabaseUrl = 'https://rkdasiyctqzdcdmsnnui.supabase.co';
 const supabaseKey = 'sb_publishable_zReOxI6DnAGU07iIjA_M-w_vO31z8Es';
@@ -540,7 +543,8 @@ function setAuthMode(mode) {
     authSubmit.textContent = signup ? 'Create Account' : 'Sign In';
     document.getElementById('auth-switch-text').textContent = signup ? 'Already have an account?' : 'New here?';
     document.getElementById('auth-switch-btn').textContent = signup ? 'Sign in' : 'Create an account';
-    document.querySelectorAll('.signup-only').forEach(el => el.style.display = signup ? 'block' : 'none');
+        document.querySelectorAll('.signup-only').forEach(el => el.style.display = signup ? 'block' : 'none');
+    document.querySelectorAll('.signin-only').forEach(el => el.style.display = signup ? 'none' : 'block');
     document.getElementById('auth-name').required = signup;
        applyAccountType();
     showAuthMessage('');
@@ -635,9 +639,10 @@ async function initAuth() {
     if (db) {
         const { data } = await db.auth.getSession();
         currentUser = userFromSupabase(data.session && data.session.user);
-        db.auth.onAuthStateChange((_event, session) => {
+                db.auth.onAuthStateChange((event, session) => {
             currentUser = userFromSupabase(session && session.user);
             renderProfile();
+            if (event === 'PASSWORD_RECOVERY') showResetCard();
         });
     } else {
         try { currentUser = JSON.parse(localStorage.getItem('ighDemoUser')); }
@@ -1542,6 +1547,47 @@ document.getElementById('password-form').addEventListener('submit', async (e) =>
     }
 });
 
+// ---------- Forgot password ----------
+document.getElementById('forgot-btn').addEventListener('click', async () => {
+    const email = document.getElementById('auth-email').value.trim();
+    if (!email) {
+        showAuthMessage('Type your email above first, then tap Forgot password.');
+        return;
+    }
+    if (!db) return;
+    showAuthMessage('');
+    const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/' });
+    if (error) showAuthMessage(error.message);
+    else showAuthMessage('If that email has an account, a reset link is on its way. Check your inbox.', true);
+});
+
+function showResetCard() {
+    switchTab(navProfile, profileSection);
+    const card = document.getElementById('reset-card');
+    card.style.display = 'block';
+    card.scrollIntoView({ behavior: 'smooth' });
+}
+
+document.getElementById('reset-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('reset-msg');
+    const btn = document.getElementById('reset-save');
+    setMsg(msg, '');
+    setButtonLoading(btn, true, 'Saving...');
+    try {
+        if (!db) throw new Error('Not connected.');
+        const { error } = await db.auth.updateUser({ password: document.getElementById('reset-password').value });
+        if (error) throw error;
+        document.getElementById('reset-form').reset();
+        document.getElementById('reset-card').style.display = 'none';
+        alert('Password updated. You are signed in.');
+    } catch (err) {
+        setMsg(msg, err.message);
+    } finally {
+        setButtonLoading(btn, false, 'Save Password');
+    }
+});
+
 // ---------- Become a seller ----------
 const becomeSellerBtn = document.getElementById('become-seller-btn');
 const becomeSellerForm = document.getElementById('become-seller-form');
@@ -1594,4 +1640,7 @@ becomeSellerForm.addEventListener('submit', async (e) => {
 loadHomeTab('explore');
 setAuthMode('signin');
 authCard.style.display = 'none';
-initAuth().then(openItemFromHash);
+initAuth().then(() => {
+    openItemFromHash();
+    if (cameFromRecovery) showResetCard();
+});

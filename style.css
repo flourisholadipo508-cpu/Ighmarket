@@ -552,3 +552,5 @@ a.outline-btn { display: inline-block; text-decoration: none; text-align: center
 /* Share buttons */
 .share-row { display: flex; gap: 10px; margin-top: 10px; }
 .share-row .outline-btn { flex: 1; padding: 11px; }
+/* Forgot password */
+.auth-forgot { text-align: right; margin: -4px 0 14px 0; }
