@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IGH Market</title>
     <link rel="stylesheet" href="style.css">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
     <link rel="icon" type="image/png" href="ighmarket logo2.png">
 </head>
 <body>
@@ -141,7 +142,8 @@
                 <label for="auth-password">Password</label>
                 <input type="password" id="auth-password" required minlength="6">
             </div>
-                        <p class="auth-forgot signin-only"><button type="button" id="forgot-btn" class="link-btn">Forgot password?</button></p>
+                        <div id="captcha-box" class="captcha-box"></div>
+            <p class="auth-forgot signin-only"><button type="button" id="forgot-btn" class="link-btn">Forgot password?</button></p>
             <button type="submit" id="auth-submit" class="primary-btn full">Sign In</button>
         </form>
         <p class="auth-switch">
@@ -239,7 +241,13 @@
                 </form>
             </div>
 
-                       <details class="info-panel" id="settings-panel">
+                       <div class="form-card" id="admin-entry" style="display: none;">
+                <h3>Admin</h3>
+                <p class="muted">Review reports and manage listings and sellers.</p>
+                <button type="button" id="open-admin" class="primary-btn">Open Admin Dashboard</button>
+            </div>
+
+            <details class="info-panel" id="settings-panel">
                 <summary>Account Settings</summary>
                 <form id="settings-form">
                     <p id="settings-msg"></p>
@@ -272,7 +280,7 @@
     <details class="info-panel">
         <summary>Contact Us</summary>
         <p>Questions, problems or feedback? Reach us here:</p>
-                <p><a href="mailto:ighmarket001@gmail.com">ighmarket001@gmail.com</a></p>
+                <p><a href="mailto:hello@ighmarket001.com.ng">hello@ighmarket001.com.ng</a></p>
         <p><a href="https://wa.me/239166428113" target="_blank" rel="noopener">Chat with us on WhatsApp</a></p>
     </details>
 </div>
@@ -282,6 +290,21 @@
         <section id="detail-section" class="view-section" style="display: none;">
             <button id="detail-back" class="back-btn">← Back</button>
             <div id="detail-content"></div>
+        </section>
+
+          <!-- ADMIN -->
+        <section id="admin-section" class="view-section" style="display: none;">
+            <button id="admin-back" class="back-btn">← Back</button>
+            <div class="banner">
+                <h2>Admin Dashboard</h2>
+                <p>Reports, listings and sellers.</p>
+            </div>
+            <div class="admin-tabs">
+                <button type="button" class="admin-tab active" data-tab="reports">Reports</button>
+                <button type="button" class="admin-tab" data-tab="listings">Listings</button>
+                <button type="button" class="admin-tab" data-tab="sellers">Sellers</button>
+            </div>
+            <div id="admin-content"></div>
         </section>
 
         <!-- SELLER PAGE -->

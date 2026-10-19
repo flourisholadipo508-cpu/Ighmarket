@@ -220,7 +220,10 @@ const categoryLabels = {
 let detailBackIndex = 0;
 let detailBackScroll = 0;
 
+let detailItem = null;
+
 function openDetail(item) {
+    detailItem = item;
     const activeIndex = allNavItems.findIndex(n => n.classList.contains('active'));
     detailBackIndex = activeIndex >= 0 ? activeIndex : 0;
     detailBackScroll = window.scrollY;
@@ -276,7 +279,8 @@ function openDetail(item) {
         </div>`;
 
     allSections.forEach(sec => sec.style.display = 'none');
-    detailSection.style.display = 'block';
+        detailSection.style.display = 'block';
+    trackListing(item, 'view');
     window.scrollTo(0, 0);
 }
 
@@ -506,6 +510,53 @@ uploadForm.addEventListener('submit', async (e) => {
     }
 });
 
+// ---------- Toast bubble ----------
+let toastTimer;
+
+function showToast(title, text) {
+    let el = document.getElementById('toast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'toast';
+        el.className = 'toast';
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
+        el.innerHTML = '<div class="toast-check">✓</div><div class="toast-text"><strong></strong><span></span></div>';
+        el.addEventListener('click', () => el.classList.remove('show'));
+        document.body.appendChild(el);
+    }
+    el.querySelector('strong').textContent = title;
+    el.querySelector('span').textContent = text || '';
+    void el.offsetWidth; // restart the slide-in
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 7000);
+}
+
+// ---------- CAPTCHA (Cloudflare Turnstile) ----------
+const TURNSTILE_SITE_KEY = '0x4AAAAAAFbsTZQIVO4eIE5v';
+let captchaWidgetId = null;
+let captchaToken = '';
+
+function ensureCaptcha(tries = 0) {
+    if (captchaWidgetId !== null || tries > 40) return;
+    if (window.turnstile) {
+        captchaWidgetId = turnstile.render('#captcha-box', {
+            sitekey: TURNSTILE_SITE_KEY,
+            callback: (t) => { captchaToken = t; },
+            'expired-callback': () => { captchaToken = ''; },
+            'error-callback': () => { captchaToken = ''; }
+        });
+    } else {
+        setTimeout(() => ensureCaptcha(tries + 1), 300);
+    }
+}
+
+function resetCaptcha() {
+    captchaToken = '';
+    if (window.turnstile && captchaWidgetId !== null) turnstile.reset(captchaWidgetId);
+}
+
 // ---------- Accounts ----------
 let currentUser = null; // { id, email, store_name, whatsapp_number }
 let authMode = 'signin';
@@ -546,8 +597,9 @@ function setAuthMode(mode) {
         document.querySelectorAll('.signup-only').forEach(el => el.style.display = signup ? 'block' : 'none');
     document.querySelectorAll('.signin-only').forEach(el => el.style.display = signup ? 'none' : 'block');
     document.getElementById('auth-name').required = signup;
-       applyAccountType();
+          applyAccountType();
     showAuthMessage('');
+    setTimeout(() => { if (authCard.style.display !== 'none') ensureCaptcha(); }, 0);
 }
 
 function applyRoleView() {
@@ -680,10 +732,12 @@ if (whatsapp_number.startsWith('0')) whatsapp_number = '234' + whatsapp_number.s
             };
             saveDemoUser(currentUser);
         } else if (authMode === 'signup') {
+                        if (!captchaToken) throw new Error('Please wait for the security check to finish, then try again.');
             const { data, error } = await db.auth.signUp({
                 email,
                 password,
-                                options: {
+                                            options: {
+                    captchaToken,
                     data: {
                         account_type: accountType,
                         display_name: store_name,
@@ -694,12 +748,14 @@ if (whatsapp_number.startsWith('0')) whatsapp_number = '234' + whatsapp_number.s
             });
             if (error) throw error;
             if (!data.session) {
-                showAuthMessage('Account created. Check your email to confirm it, then sign in.', true);
+                                showAuthMessage('Account created. Check your email to confirm it, then sign in.', true);
+                showToast('Confirmation email sent', `We sent a link to ${email}. Check your inbox (and spam), tap it, then sign in.`);
                 return;
             }
             currentUser = userFromSupabase(data.session.user);
         } else {
-            const { data, error } = await db.auth.signInWithPassword({ email, password });
+                        if (!captchaToken) throw new Error('Please wait for the security check to finish, then try again.');
+            const { data, error } = await db.auth.signInWithPassword({ email, password, options: { captchaToken } });
             if (error) throw error;
             currentUser = userFromSupabase(data.user);
         }
@@ -709,7 +765,8 @@ if (whatsapp_number.startsWith('0')) whatsapp_number = '234' + whatsapp_number.s
     } catch (err) {
         showAuthMessage(err.message);
     } finally {
-                setButtonLoading(authSubmit, false, authMode === 'signup' ? 'Create Account' : 'Sign In');
+                        setButtonLoading(authSubmit, false, authMode === 'signup' ? 'Create Account' : 'Sign In');
+        resetCaptcha();
     }
 });
 
@@ -1288,6 +1345,28 @@ detailContent.addEventListener('submit', async (e) => {
     }
 });
 
+// ---------- View and WhatsApp counts ----------
+function trackListing(item, kind) {
+    if (!db || !item || !item.id) return;
+    if (currentUser && currentUser.id === item.seller_id) return; // don't count the owner
+    if (kind === 'view') {
+        try {
+            const key = 'ighViewed-' + item.id;
+            if (sessionStorage.getItem(key)) return;
+            sessionStorage.setItem(key, '1');
+        } catch (err) {}
+    }
+    db.rpc('track_listing', { p_listing: item.id, p_kind: kind }).then(({ error }) => {
+        if (error) console.error(error);
+    });
+}
+
+detailContent.addEventListener('click', (e) => {
+    if (!e.target.closest('.detail-wa')) return;
+    const item = detailItem;
+    if (item) trackListing(item, 'whatsapp');
+});
+
 // ---------- Share an item ----------
 function itemLink(id) {
     return location.href.split('#')[0] + '#item=' + id;
@@ -1360,7 +1439,8 @@ function myListingRow(item) {
             <div class="ml-info">
                 <strong>${escapeHtml(item.title)}</strong>
                 <span>₦${Number(item.price).toLocaleString()}</span>
-                <span class="ml-status ${item.is_sold ? 'sold' : 'active'}">${item.is_sold ? 'Sold' : 'Active'}</span>
+                               <span class="ml-status ${item.is_sold ? 'sold' : 'active'}">${item.is_sold ? 'Sold' : 'Active'}</span>
+                <span>👁 ${item.views || 0} views · 💬 ${item.whatsapp_clicks || 0} WhatsApp taps</span>
             </div>
                         <div class="ml-actions">
                 <button type="button" class="ml-btn" data-action="edit">Edit</button>
@@ -1555,8 +1635,13 @@ document.getElementById('forgot-btn').addEventListener('click', async () => {
         return;
     }
     if (!db) return;
-    showAuthMessage('');
-    const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/' });
+        showAuthMessage('');
+    if (!captchaToken) {
+        showAuthMessage('Please wait for the security check to finish, then try again.');
+        return;
+    }
+    const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/', captchaToken });
+    resetCaptcha();
     if (error) showAuthMessage(error.message);
     else showAuthMessage('If that email has an account, a reset link is on its way. Check your inbox.', true);
 });
