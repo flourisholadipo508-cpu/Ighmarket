@@ -534,7 +534,7 @@ function showToast(title, text) {
 }
 
 // ---------- CAPTCHA (Cloudflare Turnstile) ----------
-const TURNSTILE_SITE_KEY = '0x4AAAAAAFbsTZQIVO4eIE5v';
+const TURNSTILE_SITE_KEY = '0x4AAAAAAFbuju2RgfXMXb_k';
 let captchaWidgetId = null;
 let captchaToken = '';
 
