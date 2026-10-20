@@ -43,7 +43,8 @@ const sellerSection = document.getElementById('seller-section');
 const sellerContent = document.getElementById('seller-content');
 
 const allNavItems = [navHome, navCategory, navWishlist, navProfile];
-const allSections = [browseSection, categorySection, wishlistSection, profileSection, detailSection, sellerSection];
+const adminSection = document.getElementById('admin-section');
+const allSections = [browseSection, categorySection, wishlistSection, profileSection, detailSection, sellerSection, adminSection];
 
 // ---------- Helpers ----------
 const FEED_SPINNER = '<div class="feed-loading"><span class="spinner spinner-dark"></span></div>';
@@ -658,8 +659,9 @@ function renderProfile() {
                 const name = currentUser.display_name || currentUser.store_name || currentUser.email || 'Me';
                        applyRoleView();
                 refreshSellerStatus();
-        loadWishlistIds();
+                loadWishlistIds();
         loadFollowingIds();
+        checkAdmin();
         document.getElementById('profile-name').textContent = name;
                document.getElementById('profile-avatar').textContent =
             name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -1670,6 +1672,205 @@ document.getElementById('reset-form').addEventListener('submit', async (e) => {
         setMsg(msg, err.message);
     } finally {
         setButtonLoading(btn, false, 'Save Password');
+    }
+});
+
+// ---------- Admin dashboard ----------
+const adminContent = document.getElementById('admin-content');
+const adminImages = {};
+let adminTab = 'reports';
+
+async function checkAdmin() {
+    const entry = document.getElementById('admin-entry');
+    entry.style.display = 'none';
+    if (!db || !currentUser) return;
+    const userId = currentUser.id;
+    const { data, error } = await db.rpc('is_admin');
+    if (error || !currentUser || currentUser.id !== userId) return;
+    currentUser.is_admin = data === true;
+    entry.style.display = currentUser.is_admin ? '' : 'none';
+}
+
+function adminDate(d) {
+    return d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+}
+
+function adminThumb(l) {
+    return l && l.image_urls && l.image_urls[0]
+        ? `<img loading="lazy" src="${escapeHtml(l.image_urls[0])}" alt="">`
+        : '<div class="admin-noimg"></div>';
+}
+
+const ADMIN_SEARCH = '<input type="search" class="f-search admin-search" placeholder="Search...">';
+
+async function renderAdminReports() {
+    const { data, error } = await db
+        .from('reports')
+        .select('*, listings(id, title, price, image_urls, seller_id, sellers(store_name))')
+        .eq('status', 'open')
+        .order('created_at', { ascending: false });
+    if (adminTab !== 'reports') return;
+    if (error) {
+        console.error(error);
+        adminContent.innerHTML = '<p class="muted">Could not load reports.</p>';
+        return;
+    }
+    if (!data.length) {
+        adminContent.innerHTML = '<p class="muted">No open reports.</p>';
+        return;
+    }
+    adminContent.innerHTML = `<p class="admin-count">${data.length} open report${data.length === 1 ? '' : 's'}</p>` +
+        data.map(r => {
+            const l = r.listings || {};
+            adminImages[l.id] = l.image_urls;
+            return `
+            <div class="admin-row" data-report="${escapeHtml(r.id)}" data-listing="${escapeHtml(l.id || '')}">
+                ${adminThumb(l)}
+                <div class="admin-info">
+                    <strong>${escapeHtml(l.title || 'Listing')}</strong>
+                    <span>₦${Number(l.price || 0).toLocaleString()} · ${escapeHtml((l.sellers && l.sellers.store_name) || '')}</span>
+                    <span class="admin-reason">${escapeHtml(r.reason)}</span>
+                    ${r.details ? `<span>${escapeHtml(r.details)}</span>` : ''}
+                    <span>${adminDate(r.created_at)}</span>
+                </div>
+                <div class="admin-actions">
+                    <button type="button" class="ml-btn" data-act="view">View</button>
+                    <button type="button" class="ml-btn" data-act="dismiss">Dismiss</button>
+                    <button type="button" class="ml-btn danger" data-act="remove">Remove listing</button>
+                </div>
+            </div>`;
+        }).join('');
+}
+
+async function renderAdminListings() {
+    const { data, error } = await db
+        .from('listings')
+        .select('id, title, price, image_urls, is_sold, created_at, sellers(store_name)')
+        .order('created_at', { ascending: false })
+        .limit(100);
+    if (adminTab !== 'listings') return;
+    if (error) {
+        console.error(error);
+        adminContent.innerHTML = '<p class="muted">Could not load listings.</p>';
+        return;
+    }
+    adminContent.innerHTML = ADMIN_SEARCH + (data.length ? data.map(l => {
+        adminImages[l.id] = l.image_urls;
+        return `
+        <div class="admin-row" data-listing="${escapeHtml(l.id)}">
+            ${adminThumb(l)}
+            <div class="admin-info">
+                <strong>${escapeHtml(l.title)}</strong>
+                <span>₦${Number(l.price).toLocaleString()} · ${escapeHtml((l.sellers && l.sellers.store_name) || '')} · ${l.is_sold ? 'Sold' : 'Active'}</span>
+                <span>${adminDate(l.created_at)}</span>
+            </div>
+            <div class="admin-actions">
+                <button type="button" class="ml-btn" data-act="view">View</button>
+                <button type="button" class="ml-btn danger" data-act="remove">Remove</button>
+            </div>
+        </div>`;
+    }).join('') : '<p class="muted">No listings yet.</p>');
+}
+
+async function renderAdminSellers() {
+    const { data, error } = await db
+        .from('sellers')
+        .select('id, store_name, whatsapp_number, tier, suspended, created_at')
+        .order('created_at', { ascending: false })
+        .limit(200);
+    if (adminTab !== 'sellers') return;
+    if (error) {
+        console.error(error);
+        adminContent.innerHTML = '<p class="muted">Could not load sellers.</p>';
+        return;
+    }
+    adminContent.innerHTML = ADMIN_SEARCH + (data.length ? data.map(s => `
+        <div class="admin-row" data-seller="${escapeHtml(s.id)}">
+            <div class="admin-info">
+                <strong>${escapeHtml(s.store_name)}${s.suspended ? ' <span class="admin-reason">· Suspended</span>' : ''}</strong>
+                <span>WhatsApp: ${escapeHtml(s.whatsapp_number)}</span>
+                <span>${escapeHtml(s.tier || 'free')} tier · joined ${adminDate(s.created_at)}</span>
+            </div>
+            <div class="admin-actions">
+                <button type="button" class="ml-btn${s.suspended ? '' : ' danger'}" data-act="${s.suspended ? 'unsuspend' : 'suspend'}">${s.suspended ? 'Unsuspend' : 'Suspend'}</button>
+            </div>
+        </div>`).join('') : '<p class="muted">No sellers yet.</p>');
+}
+
+async function loadAdminTab(tab) {
+    adminTab = tab;
+    document.querySelectorAll('.admin-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    if (!db || !currentUser || !currentUser.is_admin) {
+        adminContent.innerHTML = '<p class="muted">Not allowed.</p>';
+        return;
+    }
+    adminContent.innerHTML = FEED_SPINNER;
+    if (tab === 'reports') await renderAdminReports();
+    else if (tab === 'listings') await renderAdminListings();
+    else await renderAdminSellers();
+}
+
+document.querySelectorAll('.admin-tab').forEach(b => {
+    b.addEventListener('click', () => loadAdminTab(b.dataset.tab));
+});
+
+document.getElementById('open-admin').addEventListener('click', () => {
+    switchTab(navProfile, adminSection);
+    window.scrollTo(0, 0);
+    loadAdminTab('reports');
+});
+
+document.getElementById('admin-back').addEventListener('click', () => {
+    switchTab(navProfile, profileSection);
+    window.scrollTo(0, 0);
+});
+
+adminContent.addEventListener('input', (e) => {
+    if (!e.target.classList.contains('admin-search')) return;
+    const q = e.target.value.trim().toLowerCase();
+    adminContent.querySelectorAll('.admin-row').forEach(row => {
+        row.style.display = !q || row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+});
+
+adminContent.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-act]');
+    if (!btn || !db || !currentUser || !currentUser.is_admin) return;
+    const row = btn.closest('.admin-row');
+    const act = btn.dataset.act;
+
+    if (act === 'view') {
+        window.open(itemLink(row.dataset.listing), '_blank', 'noopener');
+        return;
+    }
+    if (act === 'remove' && !confirm('Remove this listing for good? Its photos and reports are deleted too.')) return;
+    if (act === 'suspend' && !confirm("Suspend this seller? Their items disappear from the site and they can't post until you unsuspend them.")) return;
+
+    btn.disabled = true;
+    try {
+        if (act === 'dismiss') {
+            const { data, error } = await db.from('reports').update({ status: 'dismissed' })
+                .eq('id', row.dataset.report).select('id');
+            if (error) throw error;
+            if (!data || !data.length) throw new Error('Nothing changed. Check that the admin SQL ran.');
+        } else if (act === 'remove') {
+            const id = row.dataset.listing;
+            const { data, error } = await db.from('listings').delete().eq('id', id).select('id');
+            if (error) throw error;
+            if (!data || !data.length) throw new Error('Nothing was removed. Check that the admin SQL ran.');
+            const names = storageNamesFromUrls(adminImages[id]);
+            if (names.length) await db.storage.from('listing-images').remove(names);
+        } else if (act === 'suspend' || act === 'unsuspend') {
+            const { error } = await db.rpc('admin_set_suspended', {
+                p_seller: row.dataset.seller,
+                p_value: act === 'suspend'
+            });
+            if (error) throw error;
+        }
+        await loadAdminTab(adminTab);
+    } catch (err) {
+        alert(err.message);
+        btn.disabled = false;
     }
 });
 
