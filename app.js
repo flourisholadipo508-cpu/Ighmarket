@@ -72,9 +72,10 @@ const itemsById = {};
 function cardMetaHTML(item) {
     const tags = [];
     if (item.condition) tags.push(item.condition === 'new' ? 'New' : 'Used');
-    if (item.negotiable) tags.push('Negotiable');
+        if (item.negotiable) tags.push('Negotiable');
+    const verifiedTag = item.sellers && item.sellers.verified ? '<span class="tag tag-verified">✓ Verified</span>' : '';
     const loc = item.location ? `<span class="card-loc">📍 ${escapeHtml(item.location)}</span>` : '';
-    return `<div class="card-meta">${tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>${loc}`;
+        return `<div class="card-meta">${verifiedTag}${tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>${loc}`;
 }
 
 function cardHTML(item) {
@@ -104,7 +105,7 @@ async function fetchItems(category = 'all') {
             error: null
         };
     }
-    let query = db.from('listings').select('*, sellers(store_name, whatsapp_number)');
+    let query = db.from('listings').select('*, sellers(store_name, whatsapp_number, verified)');
     if (category !== 'all') query = query.eq('category', category);
     const { data, error } = await query.order('created_at', { ascending: false });
     return { items: data || [], error };
@@ -265,7 +266,7 @@ function openDetail(item) {
                                 <div class="detail-seller" data-seller-id="${escapeHtml(item.seller_id || '')}">
                     <div class="avatar detail-avatar">${escapeHtml(initials)}</div>
                     <div>
-                        <strong>${escapeHtml(storeName)}</strong>
+                                                <strong>${escapeHtml(storeName)}${seller.verified ? '<span class="v-badge" title="Verified seller">✓</span>' : ''}</strong>
                         ${posted ? `<span>Posted ${posted}</span>` : ''}
                     </div>
                 </div>
@@ -1041,7 +1042,7 @@ async function loadWishlist() {
     grid.innerHTML = FEED_SPINNER;
     const { data, error } = await db
         .from('wishlist')
-        .select('listing_id, listings(*, sellers(store_name, whatsapp_number))')
+        .select('listing_id, listings(*, sellers(store_name, whatsapp_number, verified))')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
@@ -1164,8 +1165,8 @@ async function openSeller(sellerId) {
     window.scrollTo(0, 0);
 
     const [sellerRes, itemsRes, countRes] = await Promise.all([
-        db.from('sellers').select('id, store_name, whatsapp_number, created_at').eq('id', sellerId).maybeSingle(),
-        db.from('listings').select('*, sellers(store_name, whatsapp_number)')
+               db.from('sellers').select('id, store_name, whatsapp_number, created_at, verified').eq('id', sellerId).maybeSingle(),
+        db.from('listings').select('*, sellers(store_name, whatsapp_number, verified)')
             .eq('seller_id', sellerId).eq('is_sold', false).order('created_at', { ascending: false }),
         db.rpc('follower_count', { p_seller: sellerId })
     ]);
@@ -1191,7 +1192,7 @@ async function openSeller(sellerId) {
         <div class="seller-card">
             <div class="avatar seller-avatar">${escapeHtml(initials)}</div>
             <div class="seller-meta">
-                <h2>${escapeHtml(seller.store_name)}</h2>
+                                <h2>${escapeHtml(seller.store_name)}${seller.verified ? '<span class="v-badge" title="Verified seller">✓</span>' : ''}</h2>
                 <p>${joined ? 'Joined ' + joined + ' · ' : ''}${items.length} item${items.length === 1 ? '' : 's'} · <span id="seller-followers"></span></p>
             </div>
         </div>
@@ -1246,7 +1247,7 @@ async function loadFollowingFeed() {
 
     const { data, error } = await db
         .from('listings')
-        .select('*, sellers(store_name, whatsapp_number)')
+        .select('*, sellers(store_name, whatsapp_number, verified)')
         .eq('is_sold', false)
         .in('seller_id', [...followingIds])
         .order('created_at', { ascending: false });
@@ -1420,7 +1421,7 @@ async function openItemFromHash() {
     if (!match || !db) return;
     const { data, error } = await db
         .from('listings')
-        .select('*, sellers(store_name, whatsapp_number)')
+        .select('*, sellers(store_name, whatsapp_number, verified)')
         .eq('id', match[1])
         .eq('is_sold', false)
         .maybeSingle();
@@ -1775,7 +1776,7 @@ async function renderAdminListings() {
 async function renderAdminSellers() {
     const { data, error } = await db
         .from('sellers')
-        .select('id, store_name, whatsapp_number, tier, suspended, created_at')
+                .select('id, store_name, whatsapp_number, tier, suspended, verified, created_at')
         .order('created_at', { ascending: false })
         .limit(200);
     if (adminTab !== 'sellers') return;
@@ -1787,11 +1788,12 @@ async function renderAdminSellers() {
     adminContent.innerHTML = ADMIN_SEARCH + (data.length ? data.map(s => `
         <div class="admin-row" data-seller="${escapeHtml(s.id)}">
             <div class="admin-info">
-                <strong>${escapeHtml(s.store_name)}${s.suspended ? ' <span class="admin-reason">· Suspended</span>' : ''}</strong>
+                                <strong>${escapeHtml(s.store_name)}${s.verified ? ' ✓ Verified' : ''}${s.suspended ? ' <span class="admin-reason">· Suspended</span>' : ''}</strong>
                 <span>WhatsApp: ${escapeHtml(s.whatsapp_number)}</span>
                 <span>${escapeHtml(s.tier || 'free')} tier · joined ${adminDate(s.created_at)}</span>
             </div>
             <div class="admin-actions">
+                                <button type="button" class="ml-btn" data-act="${s.verified ? 'unverify' : 'verify'}">${s.verified ? 'Remove badge' : 'Verify'}</button>
                 <button type="button" class="ml-btn${s.suspended ? '' : ' danger'}" data-act="${s.suspended ? 'unsuspend' : 'suspend'}">${s.suspended ? 'Unsuspend' : 'Suspend'}</button>
             </div>
         </div>`).join('') : '<p class="muted">No sellers yet.</p>');
@@ -1860,6 +1862,12 @@ adminContent.addEventListener('click', async (e) => {
             if (!data || !data.length) throw new Error('Nothing was removed. Check that the admin SQL ran.');
             const names = storageNamesFromUrls(adminImages[id]);
             if (names.length) await db.storage.from('listing-images').remove(names);
+                } else if (act === 'verify' || act === 'unverify') {
+            const { error } = await db.rpc('admin_set_verified', {
+                p_seller: row.dataset.seller,
+                p_value: act === 'verify'
+            });
+            if (error) throw error;
         } else if (act === 'suspend' || act === 'unsuspend') {
             const { error } = await db.rpc('admin_set_suspended', {
                 p_seller: row.dataset.seller,
