@@ -142,7 +142,10 @@
                 <label for="auth-password">Password</label>
                 <input type="password" id="auth-password" required minlength="6">
             </div>
-                        <div id="captcha-box" class="captcha-box"></div>
+                        <div class="form-group signup-only">
+                <label class="check-row terms-row"><input type="checkbox" id="auth-terms"> <span>I agree to the <button type="button" class="link-btn" data-legal="terms">Terms of Use</button> and <button type="button" class="link-btn" data-legal="privacy">Privacy Policy</button>.</span></label>
+            </div>
+            <div id="captcha-box" class="captcha-box"></div>
             <p class="auth-forgot signin-only"><button type="button" id="forgot-btn" class="link-btn">Forgot password?</button></p>
             <button type="submit" id="auth-submit" class="primary-btn full">Sign In</button>
         </form>
