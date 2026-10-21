@@ -277,15 +277,13 @@ function openDetail(item) {
                     <button type="button" class="outline-btn copy-btn" data-id="${escapeHtml(item.id)}">Copy link</button>
                 </div>
                 <p class="safety-tip">🛡️ Stay safe: meet in a public place and don't pay before you see the item.</p>
-                                ${(currentUser && currentUser.id === item.seller_id) ? '' : reportBoxHTML(item.id)}
+                ${(currentUser && currentUser.id === item.seller_id) ? '' : reportBoxHTML(item.id)}
             </div>
-        </div>
-        <div id="related-box"></div>`;
+        </div>`;
 
     allSections.forEach(sec => sec.style.display = 'none');
         detailSection.style.display = 'block';
-        trackListing(item, 'view');
-    loadRelated(item);
+    trackListing(item, 'view');
     window.scrollTo(0, 0);
 }
 
@@ -1352,44 +1350,6 @@ detailContent.addEventListener('submit', async (e) => {
         setButtonLoading(btn, false, 'Send report');
     }
 });
-
-// ---------- More from this seller / Similar items ----------
-async function loadRelated(item) {
-    if (!db || !item || !item.id) return;
-    const sel = '*, sellers(*)';
-
-    const moreQuery = item.seller_id
-        ? db.from('listings').select(sel)
-            .eq('seller_id', item.seller_id).eq('is_sold', false).neq('id', item.id)
-            .order('created_at', { ascending: false }).limit(4)
-        : Promise.resolve({ data: [] });
-
-    const similarQuery = item.category
-        ? db.from('listings').select(sel)
-            .eq('category', item.category).eq('is_sold', false).neq('id', item.id)
-            .order('created_at', { ascending: false }).limit(12)
-        : Promise.resolve({ data: [] });
-
-    const [moreRes, simRes] = await Promise.all([moreQuery, similarQuery]);
-
-    const box = document.getElementById('related-box');
-    if (!box || detailItem !== item) return; // the person already moved on
-
-    const more = moreRes.data || [];
-    const moreIds = new Set(more.map(i => i.id));
-    const similar = (simRes.data || [])
-        .filter(i => !moreIds.has(i.id) && i.seller_id !== item.seller_id)
-        .slice(0, 4);
-
-    let html = '';
-    if (more.length) {
-        html += `<h3 class="related-title">More from this seller</h3><div class="grid">${more.map(cardHTML).join('')}</div>`;
-    }
-    if (similar.length) {
-        html += `<h3 class="related-title">Similar items</h3><div class="grid">${similar.map(cardHTML).join('')}</div>`;
-    }
-    box.innerHTML = html;
-}
 
 // ---------- View and WhatsApp counts ----------
 function trackListing(item, kind) {

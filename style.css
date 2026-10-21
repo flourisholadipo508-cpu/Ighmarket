@@ -598,6 +598,3 @@ a.outline-btn { display: inline-block; text-decoration: none; text-align: center
 .legal-links .link-btn, .legal-links a { color: #6b7d99; font-weight: normal; }
 .form-group .terms-row { font-weight: normal; font-size: 14px; line-height: 1.5; align-items: flex-start; }
 .form-group .terms-row input { margin-top: 3px; }
-
-/* Related items */
-.related-title { margin: 28px 0 12px 0; font-size: 18px; }
