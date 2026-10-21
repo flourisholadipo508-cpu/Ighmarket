@@ -44,7 +44,8 @@ const sellerContent = document.getElementById('seller-content');
 
 const allNavItems = [navHome, navCategory, navWishlist, navProfile];
 const adminSection = document.getElementById('admin-section');
-const allSections = [browseSection, categorySection, wishlistSection, profileSection, detailSection, sellerSection, adminSection];
+const legalSection = document.getElementById('legal-section');
+const allSections = [browseSection, categorySection, wishlistSection, profileSection, detailSection, sellerSection, adminSection, legalSection];
 
 // ---------- Helpers ----------
 const FEED_SPINNER = '<div class="feed-loading"><span class="spinner spinner-dark"></span></div>';
@@ -543,7 +544,7 @@ let captchaToken = '';
 function ensureCaptcha(tries = 0) {
     if (captchaWidgetId !== null || tries > 40) return;
     if (window.turnstile) {
-        captchaWidgetId = turnstile.render('#captcha-box', {
+        captchaWidgetId = window.turnstile.render('#captcha-box', {
             sitekey: TURNSTILE_SITE_KEY,
             callback: (t) => { captchaToken = t; },
             'expired-callback': () => { captchaToken = ''; },
@@ -598,7 +599,8 @@ function setAuthMode(mode) {
     document.getElementById('auth-switch-btn').textContent = signup ? 'Sign in' : 'Create an account';
         document.querySelectorAll('.signup-only').forEach(el => el.style.display = signup ? 'block' : 'none');
     document.querySelectorAll('.signin-only').forEach(el => el.style.display = signup ? 'none' : 'block');
-    document.getElementById('auth-name').required = signup;
+        document.getElementById('auth-name').required = signup;
+    document.getElementById('auth-terms').required = signup;
           applyAccountType();
     showAuthMessage('');
     setTimeout(() => { if (authCard.style.display !== 'none') ensureCaptcha(); }, 0);
@@ -742,7 +744,8 @@ if (whatsapp_number.startsWith('0')) whatsapp_number = '234' + whatsapp_number.s
                                             options: {
                     captchaToken,
                     data: {
-                        account_type: accountType,
+                                                account_type: accountType,
+                        terms_accepted_at: new Date().toISOString(),
                         display_name: store_name,
                         store_name: accountType === 'seller' ? store_name : '',
                         whatsapp_number: accountType === 'seller' ? whatsapp_number : ''
@@ -1928,6 +1931,41 @@ becomeSellerForm.addEventListener('submit', async (e) => {
     } finally {
         setButtonLoading(bsSubmit, false, 'Start Selling');
     }
+});
+
+// ---------- Terms and Privacy ----------
+let legalReturn = null;
+
+function showLegalTab(which) {
+    const tab = which === 'privacy' ? 'privacy' : 'terms';
+    document.querySelectorAll('.legal-tab').forEach(b => b.classList.toggle('active', b.dataset.legal === tab));
+    document.getElementById('legal-terms').style.display = tab === 'terms' ? 'block' : 'none';
+    document.getElementById('legal-privacy').style.display = tab === 'privacy' ? 'block' : 'none';
+}
+
+function openLegal(which) {
+    if (legalSection.style.display !== 'block') {
+        // remember where we came from so Back returns there
+        const sectionIndex = allSections.findIndex(s => getComputedStyle(s).display !== 'none');
+        const navIndex = allNavItems.findIndex(n => n.classList.contains('active'));
+        legalReturn = {
+            section: allSections[sectionIndex >= 0 ? sectionIndex : 0],
+            nav: allNavItems[navIndex >= 0 ? navIndex : 0]
+        };
+    }
+    switchTab(legalReturn.nav, legalSection);
+    showLegalTab(which);
+}
+
+document.addEventListener('click', (e) => {
+    const link = e.target.closest('[data-legal]');
+    if (link) openLegal(link.dataset.legal);
+});
+
+document.getElementById('legal-back').addEventListener('click', () => {
+    if (legalReturn) switchTab(legalReturn.nav, legalReturn.section);
+    else navHome.click();
+    window.scrollTo(0, 0);
 });
 
 // ---------- Startup ----------
