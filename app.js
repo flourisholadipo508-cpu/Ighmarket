@@ -277,13 +277,15 @@ function openDetail(item) {
                     <button type="button" class="outline-btn copy-btn" data-id="${escapeHtml(item.id)}">Copy link</button>
                 </div>
                 <p class="safety-tip">🛡️ Stay safe: meet in a public place and don't pay before you see the item.</p>
-                ${(currentUser && currentUser.id === item.seller_id) ? '' : reportBoxHTML(item.id)}
+                                ${(currentUser && currentUser.id === item.seller_id) ? '' : reportBoxHTML(item.id)}
             </div>
-        </div>`;
+        </div>
+        <div id="related-box"></div>`;
 
     allSections.forEach(sec => sec.style.display = 'none');
         detailSection.style.display = 'block';
-    trackListing(item, 'view');
+        trackListing(item, 'view');
+    loadRelated(item);
     window.scrollTo(0, 0);
 }
 
@@ -1351,6 +1353,44 @@ detailContent.addEventListener('submit', async (e) => {
     }
 });
 
+// ---------- More from this seller / Similar items ----------
+async function loadRelated(item) {
+    if (!db || !item || !item.id) return;
+    const sel = '*, sellers(*)';
+
+    const moreQuery = item.seller_id
+        ? db.from('listings').select(sel)
+            .eq('seller_id', item.seller_id).eq('is_sold', false).neq('id', item.id)
+            .order('created_at', { ascending: false }).limit(4)
+        : Promise.resolve({ data: [] });
+
+    const similarQuery = item.category
+        ? db.from('listings').select(sel)
+            .eq('category', item.category).eq('is_sold', false).neq('id', item.id)
+            .order('created_at', { ascending: false }).limit(12)
+        : Promise.resolve({ data: [] });
+
+    const [moreRes, simRes] = await Promise.all([moreQuery, similarQuery]);
+
+    const box = document.getElementById('related-box');
+    if (!box || detailItem !== item) return; // the person already moved on
+
+    const more = moreRes.data || [];
+    const moreIds = new Set(more.map(i => i.id));
+    const similar = (simRes.data || [])
+        .filter(i => !moreIds.has(i.id) && i.seller_id !== item.seller_id)
+        .slice(0, 4);
+
+    let html = '';
+    if (more.length) {
+        html += `<h3 class="related-title">More from this seller</h3><div class="grid">${more.map(cardHTML).join('')}</div>`;
+    }
+    if (similar.length) {
+        html += `<h3 class="related-title">Similar items</h3><div class="grid">${similar.map(cardHTML).join('')}</div>`;
+    }
+    box.innerHTML = html;
+}
+
 // ---------- View and WhatsApp counts ----------
 function trackListing(item, kind) {
     if (!db || !item || !item.id) return;
@@ -1630,6 +1670,45 @@ document.getElementById('password-form').addEventListener('submit', async (e) =>
         setMsg(msg, err.message);
     } finally {
         setButtonLoading(btn, false, 'Change Password');
+    }
+});
+
+// ---------- Delete my account ----------
+document.getElementById('delete-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('delete-msg');
+    const btn = document.getElementById('delete-btn');
+    setMsg(msg, '');
+    try {
+        if (!currentUser || !db) throw new Error('Please sign in first.');
+        if (document.getElementById('delete-confirm').value.trim() !== 'DELETE') {
+            throw new Error('Type DELETE in capital letters to confirm.');
+        }
+        if (!confirm('Last check: delete your account and everything on it for good?')) return;
+
+        setButtonLoading(btn, true, 'Deleting...');
+
+        // remove this person's photos first
+        const { data: mine } = await db.from('listings').select('image_urls').eq('seller_id', currentUser.id);
+        const names = (mine || []).flatMap(l => storageNamesFromUrls(l.image_urls));
+        if (names.length) await db.storage.from('listing-images').remove(names);
+
+        const { error } = await db.rpc('delete_my_account');
+        if (error) throw error;
+
+        try { await db.auth.signOut({ scope: 'local' }); } catch (err) {}
+        currentUser = null;
+        wishlistIds.clear();
+        followingIds.clear();
+        refreshHearts();
+        document.getElementById('delete-form').reset();
+        renderProfile();
+        navHome.click();
+        showToast('Account deleted', 'Your account and listings have been removed.');
+    } catch (err) {
+        setMsg(msg, err.message);
+    } finally {
+        setButtonLoading(btn, false, 'Delete my account');
     }
 });
 

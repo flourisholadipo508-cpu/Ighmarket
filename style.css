@@ -598,3 +598,11 @@ a.outline-btn { display: inline-block; text-decoration: none; text-align: center
 .legal-links .link-btn, .legal-links a { color: #6b7d99; font-weight: normal; }
 .form-group .terms-row { font-weight: normal; font-size: 14px; line-height: 1.5; align-items: flex-start; }
 .form-group .terms-row input { margin-top: 3px; }
+
+/* Related items */
+.related-title { margin: 28px 0 12px 0; font-size: 18px; }
+
+/* Delete account */
+.danger-panel summary { color: #c62828; }
+.danger-btn { width: 100%; background: #c62828; color: #FFFFFF; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+.danger-btn:disabled { opacity: 0.6; cursor: default; }
