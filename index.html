@@ -3,7 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IGH Market</title>
+        <title>IGH Market</title>
+    <script>
+        try {
+            var t = localStorage.getItem('ighTheme');
+            if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {}
+    </script>
     <link rel="stylesheet" href="style.css">
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
     <link rel="icon" type="image/png" href="ighmarket logo2.png">
@@ -15,7 +22,10 @@
             <img src="ighmarket logo2.png" alt="IGH Market Logo" class="logo-soft-edge">
             <h1>IGH Market</h1>
         </div>
-        <button id="nav-sell-header" class="sell-btn-header">Post Item</button>
+                <div class="header-actions">
+            <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Switch to dark mode">🌙</button>
+            <button id="nav-sell-header" class="sell-btn-header">Post Item</button>
+        </div>
     </header>
 
     <main>
@@ -37,7 +47,9 @@
         </div>
     </div>
 </div>
-                        <div class="filter-wrap" data-scope="home"></div>
+                                    <div class="filter-wrap" data-scope="home"></div>
+                        <div id="saved-box"></div>
+            <div id="recent-box"></div>
             <div id="listings-grid" class="grid"></div>
         </section>
 
@@ -237,7 +249,8 @@
                     </div>
                     <div class="form-group">
                         <label for="images">Pictures (Max 4)</label>
-                        <input type="file" id="images" accept="image/*" multiple required>
+                                                <input type="file" id="images" accept="image/*" multiple required>
+                        <div id="photo-previews"></div>
                     </div>
                                         <button type="submit" id="submit-btn">Publish to IghMarket</button>
                     <button type="button" id="cancel-edit" class="outline-btn" style="display: none; width: 100%; margin-top: 10px;">Cancel editing</button>
@@ -252,6 +265,18 @@
 
             <details class="info-panel" id="settings-panel">
                 <summary>Account Settings</summary>
+                                <div class="form-group seller-only avatar-edit">
+                    <label>Profile picture</label>
+                    <div class="avatar-row">
+                        <div class="avatar avatar-preview" id="set-avatar-preview">IM</div>
+                        <div>
+                            <input type="file" id="set-avatar" accept="image/*">
+                            <button type="button" id="avatar-remove" class="link-btn" style="display: none;">Remove picture</button>
+                        </div>
+                    </div>
+                    <p id="avatar-msg"></p>
+                </div>
+
                 <form id="settings-form">
                     <p id="settings-msg"></p>
                     <div class="form-group">
@@ -329,7 +354,7 @@
                 <h3>3. Posting items</h3>
                 <ul>
                     <li>Only post items you own or are allowed to sell. Descriptions, prices and conditions must be honest, and photos must be yours or ones you have the right to use.</li>
-                    <li>Free accounts can have up to 10 active listings at a time. Marking an item as sold or deleting it frees a slot. We may change limits or introduce paid plans in future.</li>
+                    <li>Free accounts can have up to 10 active listings at a time. To prevent spam, new seller accounts can post up to 3 items per day during their first 7 days, and other sellers up to 10 items per day. Marking an item as sold or deleting it frees a slot. We may change limits or introduce paid plans in future.</li>
                     <li>Mark items as sold or delete them when they are no longer available.</li>
                     <li>Not allowed: illegal items, stolen or counterfeit goods, weapons, drugs, adult content, anything harmful or fraudulent, listings for items you don't have, and listings meant to collect money or personal details from buyers.</li>
                     <li>Don't put other people's private details in listings or photos.</li>
@@ -370,10 +395,10 @@
                 <h3>1. What we collect</h3>
                 <ul>
                     <li><strong>Account details:</strong> your email address and your name or store name. Your password is handled by our login provider and stored in scrambled (hashed) form, so we cannot read it.</li>
-                    <li><strong>Seller details:</strong> your WhatsApp number and store name.</li>
+                    <li><strong>Seller details:</strong> your WhatsApp number, store name and an optional profile picture.</li>
                     <li><strong>Listings:</strong> titles, descriptions, prices, categories, condition, the location you type, and photos.</li>
-                    <li><strong>Activity:</strong> items you save to your wishlist, sellers you follow, reports you send, and the date you agreed to our terms. We also keep simple counts of how many times each listing was viewed and how many times its WhatsApp button was tapped. These counts are not tied to a person.</li>
-                    <li><strong>Technical data:</strong> your browser keeps a login session and small settings on your device (for example which categories you opened, to personalise "For You", and which items you viewed this visit). Our hosting and security providers receive technical data such as your IP address and browser type when you visit the site and when the security check runs.</li>
+                    <li><strong>Activity:</strong> items you save to your wishlist, sellers you follow, searches you save, reports you send, and the date you agreed to our terms. We also keep simple counts of how many times each listing was viewed and how many times its WhatsApp button was tapped. These counts are not tied to a person.</li>
+                    <li><strong>Technical data:</strong> your browser keeps a login session and small settings on your device (for example which categories you opened, to personalise "For You", which items you viewed this visit, and your recently viewed items). Our hosting and security providers receive technical data such as your IP address and browser type when you visit the site and when the security check runs.</li>
                 </ul>
                 <p>We do not collect payment details, because payments do not happen on the site, and we do not use advertising trackers.</p>
 
@@ -388,7 +413,7 @@
 
                 <h3>3. What other people can see</h3>
                 <p><strong>Public:</strong> a seller's store name, verified badge, join date, follower count, listings, photos, the location text they enter, and their WhatsApp number. Sellers' WhatsApp numbers are shown so buyers can contact them, so anyone who visits the site can see them. Please don't put sensitive information in listings or photos.</p>
-                <p><strong>Private:</strong> your email address, your password, your wishlist, who you follow, and the reports you send. Reports and account details can be seen by IGH Market's administrators.</p>
+                <p><strong>Private:</strong> your email address, your password, your wishlist, who you follow, your saved searches, and the reports you send. Reports and account details can be seen by IGH Market's administrators.</p>
 
                 <h3>4. Who we share data with</h3>
                 <p>We don't sell your personal data. We use service providers to run the site:</p>

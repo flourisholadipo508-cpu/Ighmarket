@@ -50,6 +50,14 @@ const allSections = [browseSection, categorySection, wishlistSection, profileSec
 // ---------- Helpers ----------
 const FEED_SPINNER = '<div class="feed-loading"><span class="spinner spinner-dark"></span></div>';
 
+const FEED_SKELETON = Array.from({ length: 6 }, () => `
+    <div class="card skeleton-card" aria-hidden="true">
+        <div class="sk sk-img"></div>
+        <div class="sk sk-line"></div>
+        <div class="sk sk-line short"></div>
+        <div class="sk sk-btn"></div>
+    </div>`).join('');
+
 function setButtonLoading(btn, isLoading, text) {
     if (isLoading) {
         btn.disabled = true;
@@ -106,7 +114,7 @@ async function fetchItems(category = 'all') {
             error: null
         };
     }
-    let query = db.from('listings').select('*, sellers(store_name, whatsapp_number, verified)');
+    let query = db.from('listings').select('*, sellers(*)');
     if (category !== 'all') query = query.eq('category', category);
     const { data, error } = await query.order('created_at', { ascending: false });
     return { items: data || [], error };
@@ -115,7 +123,7 @@ async function fetchItems(category = 'all') {
 
 
 async function loadListings(grid, category = 'all') {
-        grid.innerHTML = FEED_SPINNER;
+                grid.innerHTML = FEED_SKELETON;
     const { items, error } = await fetchItems(category);
     if (error) {
         console.error(error);
@@ -146,6 +154,7 @@ function recordCategoryTap(category) {
 
 async function loadHomeTab(tab) {
     currentHomeTab = tab;
+    loadRecent();
     document.querySelectorAll('.feed-option').forEach(b => {
         b.classList.toggle('active', b.dataset.tab === tab);
     });
@@ -156,7 +165,7 @@ async function loadHomeTab(tab) {
     }
 
     if (tab === 'foryou') {
-        listingsGrid.innerHTML = '<p class="status-msg">Loading items...</p>';
+                listingsGrid.innerHTML = FEED_SKELETON;
         const { items, error } = await fetchItems('all');
         if (currentHomeTab !== tab) return;
         if (error) {
@@ -265,7 +274,7 @@ function openDetail(item) {
                 <h3>Description</h3>
                 <p class="detail-desc">${escapeHtml(item.description || 'No description provided.')}</p>
                                 <div class="detail-seller" data-seller-id="${escapeHtml(item.seller_id || '')}">
-                    <div class="avatar detail-avatar">${escapeHtml(initials)}</div>
+                                       <div class="avatar detail-avatar">${avatarInner(seller.avatar_url, initials)}</div>
                     <div>
                                                 <strong>${escapeHtml(storeName)}${seller.verified ? '<span class="v-badge" title="Verified seller">✓</span>' : ''}</strong>
                         ${posted ? `<span>Posted ${posted}</span>` : ''}
@@ -284,7 +293,8 @@ function openDetail(item) {
 
     allSections.forEach(sec => sec.style.display = 'none');
         detailSection.style.display = 'block';
-        trackListing(item, 'view');
+            trackListing(item, 'view');
+    recordRecent(item.id);
     loadRelated(item);
     window.scrollTo(0, 0);
 }
@@ -421,6 +431,92 @@ async function compressImage(file, maxWidth = 1000, quality = 0.7) {
     });
 }
 
+// ---------- Photo previews ----------
+const photoInput = document.getElementById('images');
+const photoPreview = document.getElementById('photo-previews');
+const MAX_PHOTOS = 4;
+let selectedPhotos = [];
+let currentPhotoUrls = [];
+let previewUrls = [];
+
+function syncPhotoInput() {
+    // keep the file box in step with our list, so the form's "required" check still works
+    try {
+        const dt = new DataTransfer();
+        selectedPhotos.forEach(f => dt.items.add(f));
+        photoInput.files = dt.files;
+    } catch (err) {}
+}
+
+function renderPhotoPreviews(note = '') {
+    previewUrls.forEach(u => URL.revokeObjectURL(u));
+    previewUrls = [];
+
+    if (!selectedPhotos.length) {
+        photoPreview.innerHTML = currentPhotoUrls.length
+            ? `<p class="photo-note">Current photos (choose new ones to replace them):</p>
+               <div class="photo-grid">${currentPhotoUrls.map(u =>
+                   `<div class="photo-item"><img src="${escapeHtml(u)}" alt=""></div>`).join('')}</div>`
+            : '';
+        return;
+    }
+
+    const items = selectedPhotos.map((file, i) => {
+        const url = URL.createObjectURL(file);
+        previewUrls.push(url);
+        return `
+            <div class="photo-item${i === 0 ? ' is-main' : ''}">
+                <img src="${url}" alt="">
+                ${i === 0
+                    ? '<span class="photo-main">Main photo</span>'
+                    : `<button type="button" class="photo-btn" data-photo="main" data-index="${i}">Make main</button>`}
+                <button type="button" class="photo-remove" data-photo="remove" data-index="${i}" aria-label="Remove photo">×</button>
+            </div>`;
+    }).join('');
+
+    photoPreview.innerHTML =
+        `<p class="photo-note">${selectedPhotos.length} of ${MAX_PHOTOS} photos. The main photo shows first on your item.</p>
+         <div class="photo-grid">${items}</div>` +
+        (note ? `<p class="photo-warn">${note}</p>` : '');
+}
+
+function clearPhotoSelection() {
+    selectedPhotos = [];
+    currentPhotoUrls = [];
+    renderPhotoPreviews();
+}
+
+photoInput.addEventListener('change', () => {
+    // the browser swaps the whole list on every pick, so add the new photos to the ones we already have
+    const picked = Array.from(photoInput.files || []);
+    let merged = selectedPhotos.concat(picked);
+    let note = '';
+    if (merged.length > MAX_PHOTOS) {
+        merged = merged.slice(0, MAX_PHOTOS);
+        note = `You can add up to ${MAX_PHOTOS} photos. The extra ones were skipped.`;
+    }
+    selectedPhotos = merged;
+    syncPhotoInput();
+    renderPhotoPreviews(note);
+});
+
+photoPreview.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-photo]');
+    if (!btn) return;
+    const i = Number(btn.dataset.index);
+    if (btn.dataset.photo === 'remove') {
+        selectedPhotos.splice(i, 1);
+    } else if (btn.dataset.photo === 'main') {
+        const [file] = selectedPhotos.splice(i, 1);
+        selectedPhotos.unshift(file);
+    }
+    syncPhotoInput();
+    renderPhotoPreviews();
+});
+
+// the form's reset (after posting or cancelling an edit) clears the previews too
+uploadForm.addEventListener('reset', clearPhotoSelection);
+
 // ---------- Post a listing ----------
 uploadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -441,7 +537,7 @@ uploadForm.addEventListener('submit', async (e) => {
         const negotiable = document.getElementById('negotiable').checked;
         const itemLocation = document.getElementById('location').value.trim();
         const description = document.getElementById('description').value;
-        const imageFiles = document.getElementById('images').files;
+                const imageFiles = selectedPhotos;
 
         if (imageFiles.length > 4) {
             throw new Error('You can only select a maximum of 4 pictures.');
@@ -615,7 +711,8 @@ function applyRoleView() {
     const tier = currentUser.tier || 'free';
     document.getElementById('profile-badge').textContent =
                 currentUser.is_seller ? tier.charAt(0).toUpperCase() + tier.slice(1) + ' Tier' : 'Buyer';
-    fillSettings();
+        fillSettings();
+    refreshOwnAvatar();
 }
 
 async function refreshSellerStatus() {
@@ -623,7 +720,7 @@ async function refreshSellerStatus() {
     const userId = currentUser.id;
     const { data, error } = await db
         .from('sellers')
-        .select('store_name, whatsapp_number, tier')
+               .select('store_name, whatsapp_number, tier, avatar_url')
         .eq('id', userId)
         .maybeSingle();
     if (error) {
@@ -635,7 +732,8 @@ async function refreshSellerStatus() {
     if (data) {
         currentUser.store_name = data.store_name;
         currentUser.whatsapp_number = data.whatsapp_number;
-        currentUser.tier = data.tier;
+                currentUser.tier = data.tier;
+        currentUser.avatar_url = data.avatar_url || '';
     }
        applyRoleView();
     if (currentUser.is_seller) loadMyListings();
@@ -659,7 +757,8 @@ async function updateListingCount() {
 function renderProfile() {
     const loggedIn = !!currentUser;
     profileGuest.style.display = loggedIn ? 'none' : 'block';
-    profileUser.style.display = loggedIn ? 'block' : 'none';
+        profileUser.style.display = loggedIn ? 'block' : 'none';
+    loadSavedSearches();
     if (loggedIn) {
                 const name = currentUser.display_name || currentUser.store_name || currentUser.email || 'Me';
                        applyRoleView();
@@ -668,8 +767,7 @@ function renderProfile() {
         loadFollowingIds();
         checkAdmin();
         document.getElementById('profile-name').textContent = name;
-               document.getElementById('profile-avatar').textContent =
-            name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+                 refreshOwnAvatar();         
         updateListingCount();
     }
 }
@@ -810,7 +908,10 @@ const FILTER_BAR_HTML = `
             <label>Min price (₦)<input type="number" class="f-min" min="0" placeholder="0"></label>
             <label>Max price (₦)<input type="number" class="f-max" min="0" placeholder="Any"></label>
         </div>
-        <button type="button" class="link-btn f-clear">Clear filters</button>
+                <div class="filter-links">
+            <button type="button" class="link-btn f-clear">Clear filters</button>
+            <button type="button" class="link-btn f-save">Save this search</button>
+        </div>
     </div>`;
 
 const gridItems = {};
@@ -916,7 +1017,8 @@ function renderGrid(grid) {
 }
 
 document.querySelectorAll('.filter-wrap').forEach(wrap => {
-    wrap.innerHTML = FILTER_BAR_HTML;
+        wrap.innerHTML = FILTER_BAR_HTML;
+    if (wrap.dataset.scope !== 'home') wrap.querySelector('.f-save').remove();
     const scope = wrap.dataset.scope;
     const grid = document.getElementById(scope === 'home' ? 'listings-grid' : 'category-grid');
     const panel = wrap.querySelector('.filter-panel');
@@ -1047,7 +1149,7 @@ async function loadWishlist() {
     grid.innerHTML = FEED_SPINNER;
     const { data, error } = await db
         .from('wishlist')
-        .select('listing_id, listings(*, sellers(store_name, whatsapp_number, verified))')
+        .select('listing_id, listings(*, sellers(*))')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
@@ -1170,8 +1272,8 @@ async function openSeller(sellerId) {
     window.scrollTo(0, 0);
 
     const [sellerRes, itemsRes, countRes] = await Promise.all([
-               db.from('sellers').select('id, store_name, whatsapp_number, created_at, verified').eq('id', sellerId).maybeSingle(),
-        db.from('listings').select('*, sellers(store_name, whatsapp_number, verified)')
+                       db.from('sellers').select('*').eq('id', sellerId).maybeSingle(),
+        db.from('listings').select('*, sellers(*)')
             .eq('seller_id', sellerId).eq('is_sold', false).order('created_at', { ascending: false }),
         db.rpc('follower_count', { p_seller: sellerId })
     ]);
@@ -1195,7 +1297,7 @@ async function openSeller(sellerId) {
 
     sellerContent.innerHTML = `
         <div class="seller-card">
-            <div class="avatar seller-avatar">${escapeHtml(initials)}</div>
+                                            <div class="avatar seller-avatar">${avatarInner(seller.avatar_url, initials)}</div>
             <div class="seller-meta">
                                 <h2>${escapeHtml(seller.store_name)}${seller.verified ? '<span class="v-badge" title="Verified seller">✓</span>' : ''}</h2>
                 <p>${joined ? 'Joined ' + joined + ' · ' : ''}${items.length} item${items.length === 1 ? '' : 's'} · <span id="seller-followers"></span></p>
@@ -1238,7 +1340,7 @@ async function loadFollowingFeed() {
     }
     if (!db) return;
 
-    listingsGrid.innerHTML = FEED_SPINNER;
+        listingsGrid.innerHTML = FEED_SKELETON;
     await loadFollowingIds();
     if (currentHomeTab !== 'following') return;
 
@@ -1252,7 +1354,7 @@ async function loadFollowingFeed() {
 
     const { data, error } = await db
         .from('listings')
-        .select('*, sellers(store_name, whatsapp_number, verified)')
+        .select('*, sellers(*)')
         .eq('is_sold', false)
         .in('seller_id', [...followingIds])
         .order('created_at', { ascending: false });
@@ -1464,7 +1566,7 @@ async function openItemFromHash() {
     if (!match || !db) return;
     const { data, error } = await db
         .from('listings')
-        .select('*, sellers(store_name, whatsapp_number, verified)')
+        .select('*, sellers(*)')
         .eq('id', match[1])
         .eq('is_sold', false)
         .maybeSingle();
@@ -1489,7 +1591,8 @@ function myListingRow(item) {
                 <span>👁 ${item.views || 0} views · 💬 ${item.whatsapp_clicks || 0} WhatsApp taps</span>
             </div>
                         <div class="ml-actions">
-                <button type="button" class="ml-btn" data-action="edit">Edit</button>
+                                <button type="button" class="ml-btn" data-action="edit">Edit</button>
+                <button type="button" class="ml-btn" data-action="duplicate">Duplicate</button>
                 <button type="button" class="ml-btn" data-action="toggle-sold">${item.is_sold ? 'Mark available' : 'Mark as sold'}</button>
                 <button type="button" class="ml-btn danger" data-action="delete">Delete</button>
             </div>
@@ -1528,8 +1631,13 @@ document.getElementById('my-listings').addEventListener('click', async (e) => {
     const item = myListings[row.dataset.id];
     if (!item) return;
 
-        if (btn.dataset.action === 'edit') {
+          if (btn.dataset.action === 'edit') {
         startEdit(item);
+        return;
+    }
+
+    if (btn.dataset.action === 'duplicate') {
+        startDuplicate(item, btn);
         return;
     }
 
@@ -1557,6 +1665,93 @@ document.getElementById('my-listings').addEventListener('click', async (e) => {
     }
 });
 
+// ---------- Profile pictures ----------
+function avatarInner(url, initials) {
+    return url ? `<img src="${escapeHtml(url)}" alt="">` : escapeHtml(initials);
+}
+
+function refreshOwnAvatar() {
+    if (!currentUser) return;
+    const name = currentUser.display_name || currentUser.store_name || currentUser.email || 'Me';
+    const initials = name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+    const profileAvatar = document.getElementById('profile-avatar');
+    if (profileAvatar) profileAvatar.innerHTML = avatarInner(currentUser.avatar_url, initials);
+    const preview = document.getElementById('set-avatar-preview');
+    if (preview) preview.innerHTML = avatarInner(currentUser.avatar_url, initials);
+    const removeBtn = document.getElementById('avatar-remove');
+    if (removeBtn) removeBtn.style.display = currentUser.avatar_url ? '' : 'none';
+}
+
+const avatarInput = document.getElementById('set-avatar');
+const avatarRemoveBtn = document.getElementById('avatar-remove');
+const avatarMsg = document.getElementById('avatar-msg');
+
+if (avatarInput) {
+    avatarInput.addEventListener('change', async () => {
+        const file = avatarInput.files && avatarInput.files[0];
+        if (!file) return;
+        setMsg(avatarMsg, '');
+        try {
+            if (!currentUser || !db) throw new Error('Please sign in first.');
+            if (!currentUser.is_seller) throw new Error('Only seller accounts can add a profile picture.');
+            if (!file.type.startsWith('image/')) throw new Error('Please choose an image.');
+            setMsg(avatarMsg, 'Uploading...', true);
+
+            const compressed = await compressImage(file, 400, 0.8);
+            const fileName = `${currentUser.id}-avatar-${Date.now()}.jpg`;
+            const { error: upErr } = await db.storage.from('listing-images').upload(fileName, compressed);
+            if (upErr) throw upErr;
+            const { data: urlData } = db.storage.from('listing-images').getPublicUrl(fileName);
+            const newUrl = urlData.publicUrl;
+
+            const { data: updated, error } = await db
+                .from('sellers')
+                .update({ avatar_url: newUrl })
+                .eq('id', currentUser.id)
+                .select('id');
+            if (error) throw error;
+            if (!updated || !updated.length) throw new Error('Could not save your picture.');
+
+            const old = currentUser.avatar_url;
+            currentUser.avatar_url = newUrl;
+            if (old) {
+                const names = storageNamesFromUrls([old]);
+                if (names.length) await db.storage.from('listing-images').remove(names);
+            }
+            refreshOwnAvatar();
+            setMsg(avatarMsg, 'Picture updated.', true);
+        } catch (err) {
+            setMsg(avatarMsg, err.message);
+        } finally {
+            avatarInput.value = '';
+        }
+    });
+}
+
+if (avatarRemoveBtn) {
+    avatarRemoveBtn.addEventListener('click', async () => {
+        setMsg(avatarMsg, '');
+        try {
+            if (!currentUser || !db || !currentUser.avatar_url) return;
+            const old = currentUser.avatar_url;
+            const { data: updated, error } = await db
+                .from('sellers')
+                .update({ avatar_url: null })
+                .eq('id', currentUser.id)
+                .select('id');
+            if (error) throw error;
+            if (!updated || !updated.length) throw new Error('Could not remove your picture.');
+            currentUser.avatar_url = '';
+            const names = storageNamesFromUrls([old]);
+            if (names.length) await db.storage.from('listing-images').remove(names);
+            refreshOwnAvatar();
+            setMsg(avatarMsg, 'Picture removed.', true);
+        } catch (err) {
+            setMsg(avatarMsg, err.message);
+        }
+    });
+}
+
 // ---------- Edit listing and account settings ----------
 let editingId = null;
 
@@ -1576,7 +1771,10 @@ function startEdit(item) {
     document.getElementById('negotiable').checked = !!item.negotiable;
     document.getElementById('location').value = item.location || '';
     document.getElementById('images').value = '';
-    document.getElementById('images').required = false;
+        document.getElementById('images').required = false;
+    selectedPhotos = [];
+    currentPhotoUrls = item.image_urls || [];
+    renderPhotoPreviews();
     document.querySelector('label[for="images"]').textContent =
         'Pictures (optional: choose new ones to replace the current photos)';
     document.getElementById('form-title').textContent = 'Edit Listing';
@@ -1584,6 +1782,45 @@ function startEdit(item) {
     document.getElementById('cancel-edit').style.display = 'block';
     formError.textContent = '';
     document.getElementById('post-form-card').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function startDuplicate(item, btn) {
+    setButtonLoading(btn, true, 'Copying...');
+    try {
+        if (editingId) exitEditMode();
+        else uploadForm.reset();
+
+        document.getElementById('title').value = item.title;
+        document.getElementById('category').value = item.category;
+        document.getElementById('price').value = item.price;
+        document.getElementById('description').value = item.description || '';
+        document.getElementById('condition').value = item.condition || 'used';
+        document.getElementById('negotiable').checked = !!item.negotiable;
+        document.getElementById('location').value = item.location || '';
+        formError.textContent = '';
+
+        // copy the photos into the preview, so the copy gets its own files
+        const urls = (item.image_urls || []).slice(0, MAX_PHOTOS);
+        const files = [];
+        for (const url of urls) {
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('Photo not available');
+                const blob = await res.blob();
+                files.push(new File([blob], `photo-${files.length + 1}.jpg`, { type: blob.type || 'image/jpeg' }));
+            } catch (err) {
+                console.error(err);
+            }
+        }
+        selectedPhotos = files;
+        syncPhotoInput();
+        renderPhotoPreviews(files.length < urls.length ? 'Some photos could not be copied. Please add them again.' : '');
+
+        document.getElementById('post-form-card').scrollIntoView({ behavior: 'smooth' });
+        showToast('Details copied', 'Change what you need, check the photos, then publish.');
+    } finally {
+        setButtonLoading(btn, false, 'Duplicate');
+    }
 }
 
 function exitEditMode() {
@@ -1690,7 +1927,8 @@ document.getElementById('delete-form').addEventListener('submit', async (e) => {
 
         // remove this person's photos first
         const { data: mine } = await db.from('listings').select('image_urls').eq('seller_id', currentUser.id);
-        const names = (mine || []).flatMap(l => storageNamesFromUrls(l.image_urls));
+                const names = (mine || []).flatMap(l => storageNamesFromUrls(l.image_urls));
+        if (currentUser.avatar_url) names.push(...storageNamesFromUrls([currentUser.avatar_url]));
         if (names.length) await db.storage.from('listing-images').remove(names);
 
         const { error } = await db.rpc('delete_my_account');
@@ -2046,6 +2284,225 @@ document.getElementById('legal-back').addEventListener('click', () => {
     else navHome.click();
     window.scrollTo(0, 0);
 });
+
+// ---------- Recently viewed ----------
+const RECENT_KEY = 'ighRecent';
+const RECENT_MAX = 10;
+
+function getRecentIds() {
+    try {
+        const list = JSON.parse(localStorage.getItem(RECENT_KEY));
+        return Array.isArray(list) ? list.filter(id => /^[0-9a-f-]{36}$/i.test(id)) : [];
+    } catch (err) {
+        return [];
+    }
+}
+
+function recordRecent(id) {
+    if (!id) return;
+    try {
+        const ids = getRecentIds().filter(x => x !== String(id));
+        ids.unshift(String(id));
+        localStorage.setItem(RECENT_KEY, JSON.stringify(ids.slice(0, RECENT_MAX)));
+    } catch (err) {}
+    loadRecent();
+}
+
+async function loadRecent() {
+    const box = document.getElementById('recent-box');
+    if (!box) return;
+    const ids = getRecentIds();
+    if (!db || !ids.length) {
+        box.innerHTML = '';
+        return;
+    }
+    const { data, error } = await db
+        .from('listings')
+        .select('*, sellers(*)')
+        .in('id', ids)
+        .eq('is_sold', false);
+    if (error || !data || !data.length) {
+        if (error) console.error(error);
+        box.innerHTML = '';
+        return;
+    }
+    const order = new Map(ids.map((id, i) => [id, i]));
+    const items = [...data].sort((a, b) => order.get(String(a.id)) - order.get(String(b.id)));
+    box.innerHTML = `
+        <div class="recent-head">
+            <h3 class="related-title">Recently viewed</h3>
+            <button type="button" class="link-btn" id="recent-clear">Clear</button>
+        </div>
+        <div class="recent-row">${items.map(cardHTML).join('')}</div>`;
+}
+
+document.getElementById('recent-box').addEventListener('click', (e) => {
+    if (!e.target.closest('#recent-clear')) return;
+    try { localStorage.removeItem(RECENT_KEY); } catch (err) {}
+    document.getElementById('recent-box').innerHTML = '';
+});
+
+// ---------- Saved searches ----------
+let savedSearches = [];
+const savedBox = document.getElementById('saved-box');
+
+function renderSavedSearches() {
+    if (!savedSearches.length) {
+        savedBox.innerHTML = '';
+        return;
+    }
+    savedBox.innerHTML = `
+        <h3 class="saved-title">Saved searches</h3>
+        <div class="saved-row">${savedSearches.map(s => `
+            <span class="saved-chip">
+                <button type="button" class="saved-apply" data-id="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button>
+                <button type="button" class="saved-del" data-id="${escapeHtml(s.id)}" aria-label="Delete saved search">×</button>
+            </span>`).join('')}
+        </div>`;
+}
+
+async function loadSavedSearches() {
+    if (!db || !currentUser) {
+        savedSearches = [];
+        renderSavedSearches();
+        return;
+    }
+    const userId = currentUser.id;
+    const { data, error } = await db
+        .from('saved_searches')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+    if (error) {
+        console.error(error);
+        return;
+    }
+    if (!currentUser || currentUser.id !== userId) return;
+    savedSearches = data || [];
+    renderSavedSearches();
+}
+
+async function saveCurrentSearch() {
+    if (!currentUser) {
+        switchTab(navProfile, profileSection);
+        setAuthMode('signin');
+        showAuthMessage('Sign in to save searches.', true);
+        authCard.scrollIntoView({ behavior: 'smooth' });
+        return;
+    }
+    if (!db) return;
+
+    const f = getFilters('home');
+    const hasSomething = f.text || f.sort !== 'newest' || !isNaN(f.min) || !isNaN(f.max) || f.location;
+    if (!hasSomething) {
+        alert('Type a search or choose a filter first, then save it.');
+        return;
+    }
+
+    const suggestion = (f.text || f.location || 'My search').slice(0, 40);
+    const name = (prompt('Name this search:', suggestion) || '').trim().slice(0, 40);
+    if (!name) return;
+
+    const { error } = await db.from('saved_searches').insert([{
+        user_id: currentUser.id,
+        name,
+        q_text: f.text.slice(0, 100),
+        sort: f.sort,
+        min_price: isNaN(f.min) ? null : f.min,
+        max_price: isNaN(f.max) ? null : f.max,
+        location: f.location
+    }]);
+    if (error) {
+        alert(error.message);
+        return;
+    }
+    await loadSavedSearches();
+    showToast('Search saved', 'Tap its name on Home to run it again.');
+}
+
+function applySavedSearch(s) {
+    const wrap = document.querySelector('.filter-wrap[data-scope="home"]');
+    const key = (s.location || '').toLowerCase();
+
+    wrap.querySelector('.f-search').value = s.q_text || '';
+    wrap.querySelector('.f-sort').value = s.sort || 'newest';
+    wrap.querySelector('.f-min').value = s.min_price ?? '';
+    wrap.querySelector('.f-max').value = s.max_price ?? '';
+
+    const loc = wrap.querySelector('.f-location');
+    if (key && ![...loc.options].some(o => o.value === key)) {
+        loc.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(key)}">${escapeHtml(s.location)}</option>`);
+    }
+    loc.value = key;
+
+    const hasFilters = (s.sort && s.sort !== 'newest') || s.min_price != null || s.max_price != null || key;
+    wrap.querySelector('.filter-panel').style.display = hasFilters ? 'block' : 'none';
+
+    // update the Filters label and redraw the feed with the new filters
+    wrap.querySelector('.f-sort').dispatchEvent(new Event('input'));
+    if (currentHomeTab !== 'explore') loadHomeTab('explore');
+    window.scrollTo(0, 0);
+}
+
+document.addEventListener('click', (e) => {
+    if (e.target.closest('.f-save')) saveCurrentSearch();
+});
+
+savedBox.addEventListener('click', async (e) => {
+    const apply = e.target.closest('.saved-apply');
+    const del = e.target.closest('.saved-del');
+    if (apply) {
+        const s = savedSearches.find(x => x.id === apply.dataset.id);
+        if (s) applySavedSearch(s);
+        return;
+    }
+    if (del && db) {
+        const { error } = await db.from('saved_searches').delete().eq('id', del.dataset.id);
+        if (error) {
+            console.error(error);
+            alert('Could not delete. Please try again.');
+            return;
+        }
+        savedSearches = savedSearches.filter(x => x.id !== del.dataset.id);
+        renderSavedSearches();
+    }
+});
+
+// ---------- Dark mode ----------
+const themeBtn = document.getElementById('theme-toggle');
+
+function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
+function applyThemeButton() {
+    if (!themeBtn) return;
+    const dark = currentTheme() === 'dark';
+    themeBtn.textContent = dark ? '☀️' : '🌙';
+    themeBtn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+}
+
+if (themeBtn) {
+    themeBtn.addEventListener('click', () => {
+        const next = currentTheme() === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        try { localStorage.setItem('ighTheme', next); } catch (err) {}
+        applyThemeButton();
+    });
+}
+
+// until the person picks a theme, follow the device setting
+try {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        let saved = null;
+        try { saved = localStorage.getItem('ighTheme'); } catch (err) {}
+        if (saved) return;
+        document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+        applyThemeButton();
+    });
+} catch (err) {}
+
+applyThemeButton();
 
 // ---------- Startup ----------
 loadHomeTab('explore');
