@@ -800,3 +800,18 @@ html[data-theme="dark"] { color-scheme: dark; }
 
 /* skeleton loading */
 [data-theme="dark"] .sk { background: linear-gradient(90deg, #1B2740 25%, #243452 50%, #1B2740 75%); background-size: 200% 100%; }
+
+/* Block a user */
+.block-box { margin: 6px 0 0 0; }
+.block-toggle { font-size: 13px; color: #6b7d99; }
+.blocked-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #eaeaea; }
+.blocked-row:last-child { border-bottom: none; }
+#blocked-list { padding-bottom: 14px; }
+.seller-actions .block-btn { color: #c62828; font-size: 14px; }
+[data-theme="dark"] .block-toggle { color: #8FA3C0; }
+[data-theme="dark"] .blocked-row { border-bottom-color: #2A3A57; }
+[data-theme="dark"] .seller-actions .block-btn { color: #FF7B7B; }
+
+/* WhatsApp buttons (now real buttons) */
+button.whatsapp-btn { width: 100%; border: none; cursor: pointer; font-family: inherit; }
+button.outline-btn.wa-btn { font-family: inherit; }

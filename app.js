@@ -94,16 +94,16 @@ function cardHTML(item) {
     const img = hasImage
                 ? `<img loading="lazy" src="${escapeHtml(item.image_urls[0])}" alt="${escapeHtml(item.title)}">`
         : `<div class="card-img-placeholder">No photo</div>`;
-    const phone = encodeURIComponent((item.sellers && item.sellers.whatsapp_number) || '');
+        const sellerRef = escapeHtml(item.seller_id || '');
     return `
                         <div class="card" data-id="${escapeHtml(key)}">
             <div class="card-media">${img}${heartButtonHTML(key)}</div>
             <h3>${escapeHtml(item.title)}</h3>
                         <p>₦${Number(item.price).toLocaleString()}</p>
             ${cardMetaHTML(item)}
-            <a href="https://wa.me/${phone}" target="_blank" rel="noopener" class="whatsapp-btn">
+                        <button type="button" class="whatsapp-btn wa-btn" data-seller="${sellerRef}" data-title="${escapeHtml(item.title)}">
                 Chat on WhatsApp
-            </a>
+            </button>
         </div>`;
 }
 
@@ -114,7 +114,7 @@ async function fetchItems(category = 'all') {
             error: null
         };
     }
-    let query = db.from('listings').select('*, sellers(*)');
+    let query = db.from('listings').select('*, sellers(id, store_name, avatar_url, verified)');
     if (category !== 'all') query = query.eq('category', category);
     const { data, error } = await query.order('created_at', { ascending: false });
     return { items: data || [], error };
@@ -280,13 +280,14 @@ function openDetail(item) {
                         ${posted ? `<span>Posted ${posted}</span>` : ''}
                     </div>
                 </div>
-                                               <a class="whatsapp-btn detail-wa" href="https://wa.me/${phone}?text=${message}" target="_blank" rel="noopener">Chat on WhatsApp</a>
+                                               <button type="button" class="whatsapp-btn wa-btn detail-wa" data-seller="${escapeHtml(item.seller_id || '')}" data-title="${escapeHtml(item.title)}">Chat on WhatsApp</button>
                 <div class="share-row">
                     <button type="button" class="outline-btn share-btn" data-id="${escapeHtml(item.id)}" data-title="${escapeHtml(item.title)}" data-price="${escapeHtml(item.price)}">Share</button>
                     <button type="button" class="outline-btn copy-btn" data-id="${escapeHtml(item.id)}">Copy link</button>
                 </div>
                 <p class="safety-tip">🛡️ Stay safe: meet in a public place and don't pay before you see the item.</p>
-                                ${(currentUser && currentUser.id === item.seller_id) ? '' : reportBoxHTML(item.id)}
+                                                ${(currentUser && currentUser.id === item.seller_id) ? '' : reportBoxHTML(item.id)}
+                ${(currentUser && currentUser.id === item.seller_id) ? '' : blockLinkHTML(item.seller_id)}
             </div>
         </div>
         <div id="related-box"></div>`;
@@ -301,7 +302,7 @@ function openDetail(item) {
 
 // Tap a card (but not its WhatsApp link) to open it
 document.addEventListener('click', (e) => {
-       if (e.target.closest('a, .heart-btn')) return;
+              if (e.target.closest('a, .heart-btn, .wa-btn')) return;
     const card = e.target.closest('.card');
     if (!card) return;
     const item = itemsById[card.dataset.id];
@@ -720,7 +721,7 @@ async function refreshSellerStatus() {
     const userId = currentUser.id;
     const { data, error } = await db
         .from('sellers')
-               .select('store_name, whatsapp_number, tier, avatar_url')
+                       .select('store_name, tier, avatar_url')
         .eq('id', userId)
         .maybeSingle();
     if (error) {
@@ -731,7 +732,9 @@ async function refreshSellerStatus() {
     currentUser.is_seller = !!data;
     if (data) {
         currentUser.store_name = data.store_name;
-        currentUser.whatsapp_number = data.whatsapp_number;
+                const { data: myNumber } = await db.rpc('get_seller_whatsapp', { p_seller: userId });
+        if (!currentUser || currentUser.id !== userId) return;
+        if (myNumber) currentUser.whatsapp_number = myNumber;
                 currentUser.tier = data.tier;
         currentUser.avatar_url = data.avatar_url || '';
     }
@@ -757,8 +760,9 @@ async function updateListingCount() {
 function renderProfile() {
     const loggedIn = !!currentUser;
     profileGuest.style.display = loggedIn ? 'none' : 'block';
-        profileUser.style.display = loggedIn ? 'block' : 'none';
+            profileUser.style.display = loggedIn ? 'block' : 'none';
     loadSavedSearches();
+    loadBlocked();
     if (loggedIn) {
                 const name = currentUser.display_name || currentUser.store_name || currentUser.email || 'Me';
                        applyRoleView();
@@ -979,7 +983,7 @@ function moreButtonHTML(remaining) {
 }
 
 function showMore(grid) {
-    const items = gridItems[grid.id];
+    const items = visibleItems(gridItems[grid.id]);
     if (!items) return;
     const filtered = applyFilters(items, getFilters(gridScopes[grid.id]));
     const start = gridShown[grid.id] || 0;
@@ -1001,7 +1005,7 @@ document.addEventListener('click', (e) => {
 });
 
 function renderGrid(grid) {
-    const items = gridItems[grid.id];
+    const items = visibleItems(gridItems[grid.id]);
     if (!items) return;
     updateLocationOptions(gridScopes[grid.id], items);
     const filtered = applyFilters(items, getFilters(gridScopes[grid.id]));
@@ -1149,7 +1153,7 @@ async function loadWishlist() {
     grid.innerHTML = FEED_SPINNER;
     const { data, error } = await db
         .from('wishlist')
-        .select('listing_id, listings(*, sellers(*))')
+        .select('listing_id, listings(*, sellers(id, store_name, avatar_url, verified))')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
@@ -1160,7 +1164,7 @@ async function loadWishlist() {
         return;
     }
 
-    const items = (data || []).map(r => r.listings).filter(i => i && !i.is_sold);
+        const items = (data || []).map(r => r.listings).filter(i => i && !i.is_sold && !blockedIds.has(i.seller_id));
     grid.innerHTML = items.length
         ? '<div class="grid">' + items.map(cardHTML).join('') + '</div>'
         : emptyHTML('Nothing saved yet', 'Tap the heart on an item you like and it will be kept here.', 'Browse Items', 'home');
@@ -1272,8 +1276,8 @@ async function openSeller(sellerId) {
     window.scrollTo(0, 0);
 
     const [sellerRes, itemsRes, countRes] = await Promise.all([
-                       db.from('sellers').select('*').eq('id', sellerId).maybeSingle(),
-        db.from('listings').select('*, sellers(*)')
+                               db.from('sellers').select('id, store_name, avatar_url, verified, created_at').eq('id', sellerId).maybeSingle(),
+        db.from('listings').select('*, sellers(id, store_name, avatar_url, verified)')
             .eq('seller_id', sellerId).eq('is_sold', false).order('created_at', { ascending: false }),
         db.rpc('follower_count', { p_seller: sellerId })
     ]);
@@ -1292,7 +1296,8 @@ async function openSeller(sellerId) {
     const joined = seller.created_at
         ? new Date(seller.created_at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
         : '';
-    const isMe = currentUser && currentUser.id === seller.id;
+        const isMe = currentUser && currentUser.id === seller.id;
+    const isBlocked = blockedIds.has(seller.id);
     const phone = encodeURIComponent(seller.whatsapp_number || '');
 
     sellerContent.innerHTML = `
@@ -1306,12 +1311,17 @@ async function openSeller(sellerId) {
         <div class="seller-actions">
             ${isMe
                 ? '<span class="muted">This is your store.</span>'
-                : `<button type="button" class="primary-btn follow-btn" data-seller="${escapeHtml(seller.id)}">Follow</button>`}
-            <a class="outline-btn" href="https://wa.me/${phone}" target="_blank" rel="noopener">Chat on WhatsApp</a>
+                                : isBlocked
+                    ? `<span class="muted">You blocked this seller.</span><button type="button" class="outline-btn unblock-btn" data-seller="${escapeHtml(seller.id)}">Unblock</button>`
+                    : `<button type="button" class="primary-btn follow-btn" data-seller="${escapeHtml(seller.id)}">Follow</button>`}
+                        <button type="button" class="outline-btn wa-btn" data-seller="${escapeHtml(seller.id)}" data-title="">Chat on WhatsApp</button>
+            ${(isMe || isBlocked) ? '' : `<button type="button" class="link-btn block-btn" data-seller="${escapeHtml(seller.id)}">Block seller</button>`}
         </div>
         <h3 class="seller-sub">Items for sale</h3>
         <div class="grid">
-            ${items.length ? items.map(cardHTML).join('') : '<p class="status-msg">No items for sale right now.</p>'}
+                        ${isBlocked
+                ? '<p class="status-msg">Items from blocked sellers are hidden. Unblock to see them again.</p>'
+                : (items.length ? items.map(cardHTML).join('') : '<p class="status-msg">No items for sale right now.</p>')}
         </div>`;
 
     showFollowerCount();
@@ -1354,7 +1364,7 @@ async function loadFollowingFeed() {
 
     const { data, error } = await db
         .from('listings')
-        .select('*, sellers(*)')
+        .select('*, sellers(id, store_name, avatar_url, verified)')
         .eq('is_sold', false)
         .in('seller_id', [...followingIds])
         .order('created_at', { ascending: false });
@@ -1458,7 +1468,7 @@ detailContent.addEventListener('submit', async (e) => {
 // ---------- More from this seller / Similar items ----------
 async function loadRelated(item) {
     if (!db || !item || !item.id) return;
-    const sel = '*, sellers(*)';
+    const sel = '*, sellers(id, store_name, avatar_url, verified)';
 
     const moreQuery = item.seller_id
         ? db.from('listings').select(sel)
@@ -1477,9 +1487,9 @@ async function loadRelated(item) {
     const box = document.getElementById('related-box');
     if (!box || detailItem !== item) return; // the person already moved on
 
-    const more = moreRes.data || [];
+        const more = visibleItems(moreRes.data || []);
     const moreIds = new Set(more.map(i => i.id));
-    const similar = (simRes.data || [])
+        const similar = visibleItems(simRes.data || [])
         .filter(i => !moreIds.has(i.id) && i.seller_id !== item.seller_id)
         .slice(0, 4);
 
@@ -1566,7 +1576,7 @@ async function openItemFromHash() {
     if (!match || !db) return;
     const { data, error } = await db
         .from('listings')
-        .select('*, sellers(*)')
+        .select('*, sellers(id, store_name, avatar_url, verified)')
         .eq('id', match[1])
         .eq('is_sold', false)
         .maybeSingle();
@@ -2094,11 +2104,7 @@ async function renderAdminListings() {
 }
 
 async function renderAdminSellers() {
-    const { data, error } = await db
-        .from('sellers')
-                .select('id, store_name, whatsapp_number, tier, suspended, verified, created_at')
-        .order('created_at', { ascending: false })
-        .limit(200);
+        const { data, error } = await db.rpc('admin_list_sellers');
     if (adminTab !== 'sellers') return;
     if (error) {
         console.error(error);
@@ -2318,7 +2324,7 @@ async function loadRecent() {
     }
     const { data, error } = await db
         .from('listings')
-        .select('*, sellers(*)')
+        .select('*, sellers(id, store_name, avatar_url, verified)')
         .in('id', ids)
         .eq('is_sold', false);
     if (error || !data || !data.length) {
@@ -2327,7 +2333,11 @@ async function loadRecent() {
         return;
     }
     const order = new Map(ids.map((id, i) => [id, i]));
-    const items = [...data].sort((a, b) => order.get(String(a.id)) - order.get(String(b.id)));
+        const items = visibleItems([...data].sort((a, b) => order.get(String(a.id)) - order.get(String(b.id))));
+    if (!items.length) {
+        box.innerHTML = '';
+        return;
+    }
     box.innerHTML = `
         <div class="recent-head">
             <h3 class="related-title">Recently viewed</h3>
@@ -2503,6 +2513,159 @@ try {
 } catch (err) {}
 
 applyThemeButton();
+
+// ---------- Block a user ----------
+const blockedIds = new Set();
+let blockedList = [];
+
+function visibleItems(list) {
+    return list ? list.filter(i => !blockedIds.has(i.seller_id)) : list;
+}
+
+function blockLinkHTML(sellerId) {
+    if (!sellerId) return '';
+    if (blockedIds.has(sellerId)) {
+        return `<p class="block-box"><button type="button" class="link-btn block-toggle unblock-btn" data-seller="${escapeHtml(sellerId)}">✓ Seller blocked. Unblock</button></p>`;
+    }
+    return `<p class="block-box"><button type="button" class="link-btn block-toggle block-btn" data-seller="${escapeHtml(sellerId)}">⛔ Block this seller</button></p>`;
+}
+
+function renderBlockedList() {
+    const box = document.getElementById('blocked-list');
+    if (!box) return;
+    box.innerHTML = blockedList.length
+        ? blockedList.map(b => `
+            <div class="blocked-row">
+                <span>${escapeHtml(b.name)}</span>
+                <button type="button" class="ml-btn unblock-btn" data-seller="${escapeHtml(b.id)}">Unblock</button>
+            </div>`).join('')
+        : '<p class="muted">You haven\'t blocked anyone.</p>';
+}
+
+function refreshBlockedViews() {
+    renderGrid(listingsGrid);
+    renderGrid(categoryGrid);
+    loadRecent();
+    renderBlockedList();
+}
+
+async function loadBlocked() {
+    if (!db || !currentUser) {
+        blockedIds.clear();
+        blockedList = [];
+        refreshBlockedViews();
+        return;
+    }
+    const userId = currentUser.id;
+    const { data, error } = await db
+        .from('blocks')
+        .select('blocked_id, sellers(store_name)')
+        .eq('blocker_id', userId)
+        .order('created_at', { ascending: false });
+    if (error) {
+        console.error(error);
+        return;
+    }
+    if (!currentUser || currentUser.id !== userId) return;
+    blockedIds.clear();
+    blockedList = (data || []).map(r => ({
+        id: r.blocked_id,
+        name: (r.sellers && r.sellers.store_name) || 'Seller'
+    }));
+    blockedList.forEach(b => blockedIds.add(b.id));
+    refreshBlockedViews();
+}
+
+async function blockSeller(sellerId) {
+    if (!currentUser) {
+        switchTab(navProfile, profileSection);
+        setAuthMode('signin');
+        showAuthMessage('Sign in to block sellers.', true);
+        authCard.scrollIntoView({ behavior: 'smooth' });
+        return;
+    }
+    if (!db || !sellerId || currentUser.id === sellerId) return;
+    if (!confirm('Block this seller? Their items will be hidden from you everywhere on IGH Market.')) return;
+
+    const { error } = await db.from('blocks').insert([{ blocker_id: currentUser.id, blocked_id: sellerId }]);
+    if (error && error.code !== '23505') {
+        alert(error.message);
+        return;
+    }
+    // blocking also unfollows
+    await db.from('follows').delete().eq('follower_id', currentUser.id).eq('seller_id', sellerId);
+    followingIds.delete(sellerId);
+
+    await loadBlocked();
+    showToast('Seller blocked', 'Their items are hidden. You can unblock them in your Profile.');
+
+    if (sellerSection.style.display === 'block') openSeller(sellerId);
+    else if (detailSection.style.display === 'block') detailBack.click();
+}
+
+async function unblockSeller(sellerId) {
+    if (!currentUser || !db || !sellerId) return;
+    const { error } = await db.from('blocks').delete().eq('blocker_id', currentUser.id).eq('blocked_id', sellerId);
+    if (error) {
+        console.error(error);
+        alert('Could not unblock. Please try again.');
+        return;
+    }
+    await loadBlocked();
+    showToast('Seller unblocked', 'Their items will show again.');
+    if (sellerSection.style.display === 'block') openSeller(sellerId);
+    else if (detailSection.style.display === 'block' && detailItem && detailItem.seller_id === sellerId) openDetail(detailItem);
+}
+
+document.addEventListener('click', (e) => {
+    const blockBtn = e.target.closest('.block-btn');
+    if (blockBtn) {
+        blockSeller(blockBtn.dataset.seller);
+        return;
+    }
+    const unblockBtn = e.target.closest('.unblock-btn');
+    if (unblockBtn) unblockSeller(unblockBtn.dataset.seller);
+});
+
+// ---------- Chat on WhatsApp (number released only when signed in) ----------
+async function openWhatsApp(sellerId, title) {
+    if (!currentUser) {
+        switchTab(navProfile, profileSection);
+        setAuthMode('signin');
+        showAuthMessage('Sign in to chat with sellers on WhatsApp.', true);
+        authCard.scrollIntoView({ behavior: 'smooth' });
+        return;
+    }
+    if (!db || !sellerId) return;
+
+    // open the tab straight away, so phone pop-up blockers allow it
+    const win = window.open('', '_blank');
+    try {
+        const { data: number, error } = await db.rpc('get_seller_whatsapp', { p_seller: sellerId });
+        if (error) throw error;
+        if (!number) throw new Error('This seller has no WhatsApp number.');
+        const text = title
+            ? `Hi, I'm interested in "${title}" on IGH Market.`
+            : 'Hi, I found your store on IGH Market.';
+        const url = `https://wa.me/${encodeURIComponent(number)}?text=${encodeURIComponent(text)}`;
+        if (win) {
+            win.opener = null;
+            win.location.href = url;
+        } else {
+            window.location.href = url;
+        }
+    } catch (err) {
+        if (win) win.close();
+        alert(err.message);
+    }
+}
+
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.wa-btn');
+    if (!btn) return;
+    e.preventDefault();
+    openWhatsApp(btn.dataset.seller, btn.dataset.title);
+});
 
 // ---------- Startup ----------
 loadHomeTab('explore');
