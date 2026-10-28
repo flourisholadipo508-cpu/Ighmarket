@@ -1527,7 +1527,8 @@ detailContent.addEventListener('click', (e) => {
 
 // ---------- Share an item ----------
 function itemLink(id) {
-    return location.href.split('#')[0] + '#item=' + id;
+    const base = location.protocol.startsWith('http') ? location.origin : 'https://ighmarket.com.ng';
+    return `${base}/item/${id}`;
 }
 
 async function copyText(text) {
