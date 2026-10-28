@@ -707,12 +707,17 @@ function setAuthMode(mode) {
 
 function applyRoleView() {
     if (!currentUser) return;
-    document.querySelectorAll('.seller-only').forEach(el => el.style.display = currentUser.is_seller ? '' : 'none');
-    document.querySelectorAll('.client-only').forEach(el => el.style.display = currentUser.is_seller ? 'none' : '');
+    const isAdmin = !!currentUser.is_admin;
+    document.querySelectorAll('.seller-only').forEach(el => el.style.display = (currentUser.is_seller && !isAdmin) ? '' : 'none');
+    document.querySelectorAll('.client-only').forEach(el => el.style.display = (!currentUser.is_seller && !isAdmin) ? '' : 'none');
+    document.querySelectorAll('.no-admin').forEach(el => el.style.display = isAdmin ? 'none' : '');
     const tier = currentUser.tier || 'free';
-    document.getElementById('profile-badge').textContent =
-                currentUser.is_seller ? tier.charAt(0).toUpperCase() + tier.slice(1) + ' Tier' : 'Buyer';
-        fillSettings();
+    const badge = document.getElementById('profile-badge');
+    badge.textContent = isAdmin
+        ? 'Admin'
+        : (currentUser.is_seller ? tier.charAt(0).toUpperCase() + tier.slice(1) + ' Tier' : 'Buyer');
+    badge.classList.toggle('admin-badge', isAdmin);
+    fillSettings();
     refreshOwnAvatar();
 }
 
@@ -761,8 +766,9 @@ function renderProfile() {
     const loggedIn = !!currentUser;
     profileGuest.style.display = loggedIn ? 'none' : 'block';
             profileUser.style.display = loggedIn ? 'block' : 'none';
-    loadSavedSearches();
+        loadSavedSearches();
     loadBlocked();
+    if (!loggedIn) document.body.classList.remove('is-admin');
     if (loggedIn) {
                 const name = currentUser.display_name || currentUser.store_name || currentUser.email || 'Me';
                        applyRoleView();
@@ -2020,7 +2026,9 @@ async function checkAdmin() {
     const { data, error } = await db.rpc('is_admin');
     if (error || !currentUser || currentUser.id !== userId) return;
     currentUser.is_admin = data === true;
-    entry.style.display = currentUser.is_admin ? '' : 'none';
+        entry.style.display = currentUser.is_admin ? '' : 'none';
+    document.body.classList.toggle('is-admin', currentUser.is_admin);
+    applyRoleView();
 }
 
 function adminDate(d) {

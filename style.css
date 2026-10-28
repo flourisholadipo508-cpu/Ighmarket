@@ -815,3 +815,16 @@ html[data-theme="dark"] { color-scheme: dark; }
 /* WhatsApp buttons (now real buttons) */
 button.whatsapp-btn { width: 100%; border: none; cursor: pointer; font-family: inherit; }
 button.outline-btn.wa-btn { font-family: inherit; }
+
+/* Admin accounts */
+.tier-badge.admin-badge { background: #F5B301; color: #0A192F; font-weight: bold; }
+body.is-admin .heart-btn,
+body.is-admin .wa-btn,
+body.is-admin .report-box,
+body.is-admin .block-box,
+body.is-admin .block-btn,
+body.is-admin .follow-btn,
+body.is-admin .f-save,
+body.is-admin #saved-box,
+body.is-admin #nav-sell-header,
+body.is-admin #nav-wishlist { display: none !important; }
