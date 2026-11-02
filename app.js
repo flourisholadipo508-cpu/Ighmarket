@@ -276,7 +276,7 @@ function openDetail(item) {
                                 <div class="detail-seller" data-seller-id="${escapeHtml(item.seller_id || '')}">
                                        <div class="avatar detail-avatar">${avatarInner(seller.avatar_url, initials)}</div>
                     <div>
-                                                <strong>${escapeHtml(storeName)}${seller.verified ? '<span class="v-badge" title="Verified seller">✓</span>' : ''}</strong>
+                                                <strong>${escapeHtml(storeName)}${seller.verified ? '<span class="v-badge" title="Verified seller: we confirmed their WhatsApp number">✓</span>' : ''}</strong>
                         ${posted ? `<span>Posted ${posted}</span>` : ''}
                     </div>
                 </div>
@@ -1310,7 +1310,7 @@ async function openSeller(sellerId) {
         <div class="seller-card">
                                             <div class="avatar seller-avatar">${avatarInner(seller.avatar_url, initials)}</div>
             <div class="seller-meta">
-                                <h2>${escapeHtml(seller.store_name)}${seller.verified ? '<span class="v-badge" title="Verified seller">✓</span>' : ''}</h2>
+                                <h2>${escapeHtml(seller.store_name)}${seller.verified ? '<span class="v-badge" >✓</span>' : ''}</h2>
                 <p>${joined ? 'Joined ' + joined + ' · ' : ''}${items.length} item${items.length === 1 ? '' : 's'} · <span id="seller-followers"></span></p>
             </div>
         </div>
@@ -2180,7 +2180,7 @@ adminContent.addEventListener('click', async (e) => {
         window.open(itemLink(row.dataset.listing), '_blank', 'noopener');
         return;
     }
-    if (act === 'remove' && !confirm('Remove this listing for good? Its photos and reports are deleted too.')) return;
+    if (act === 'remove' && !confirm('Remove this listing for good? Its photos and reports are deleted too.')) return;     if (act === 'verify' && !confirm('Verify this seller? Only do this after you have contacted them on their WhatsApp number and they replied.')) return;
     if (act === 'suspend' && !confirm("Suspend this seller? Their items disappear from the site and they can't post until you unsuspend them.")) return;
 
     btn.disabled = true;
