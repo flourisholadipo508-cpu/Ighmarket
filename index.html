@@ -247,8 +247,13 @@
                             <option value="used" selected>Used</option>
                         </select>
                     </div>
+                                        <div class="form-group">
+                        <label for="campus">Your school</label>
+                        <input type="text" id="campus" list="campus-list" autocomplete="off" placeholder="Start typing, e.g. UNILAG" required>
+                        <datalist id="campus-list"></datalist>
+                    </div>
                     <div class="form-group">
-                        <label for="location">Location (campus or hostel)</label>
+                        <label for="location">Hostel or area (optional)</label>
                         <input type="text" id="location" placeholder="e.g. Block B, Male Hostel 2">
                     </div>
                     <div class="form-group">
@@ -410,7 +415,7 @@
                 <ul>
                     <li><strong>Account details:</strong> your email address and your name or store name. Your password is handled by our login provider and stored in scrambled (hashed) form, so we cannot read it.</li>
                     <li><strong>Seller details:</strong> your WhatsApp number, store name and an optional profile picture.</li>
-                    <li><strong>Listings:</strong> titles, descriptions, prices, categories, condition, the location you type, and photos.</li>
+                    <li><strong>Listings:</strong> titles, descriptions, prices, categories, condition, the school you choose, the hostel or area you type, and photos.</li>
                     <li><strong>Activity:</strong> items you save to your wishlist, sellers you follow, sellers you block, searches you save, reports you send, and the date you agreed to our terms. We also keep simple counts of how many times each listing was viewed and how many times its WhatsApp button was tapped. These counts are not tied to a person.</li>
                     <li><strong>Technical data:</strong> your browser keeps a login session and small settings on your device (for example which categories you opened, to personalise "For You", which items you viewed this visit, and your recently viewed items). Our hosting and security providers receive technical data such as your IP address and browser type when you visit the site and when the security check runs.</li>
                 </ul>
@@ -426,7 +431,7 @@
                 </ul>
 
                 <h3>3. What other people can see</h3>
-                <p><strong>Public:</strong> a seller's store name, verified badge, join date, follower count, listings, photos, and the location text they enter. A seller's WhatsApp number is not shown on the page. It is given to signed-in users who tap Chat on WhatsApp, a few at a time, so only share it if you are happy to be contacted by people with an account. Please don't put sensitive information in listings or photos.</p>
+                <p><strong>Public:</strong> a seller's store name, verified badge, join date, follower count, listings, photos, the school, and the hostel or area text they enter. A seller's WhatsApp number is not shown on the page. It is given to signed-in users who tap Chat on WhatsApp, a few at a time, so only share it if you are happy to be contacted by people with an account. Please don't put sensitive information in listings or photos.</p>
                 <p><strong>Private:</strong> your email address, your password, your wishlist, who you follow, who you block, your saved searches, and the reports you send. Reports and account details can be seen by IGH Market's administrators.</p>
 
                 <h3>4. Who we share data with</h3>
@@ -513,6 +518,7 @@
     </nav>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="campuses.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

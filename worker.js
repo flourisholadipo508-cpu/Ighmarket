@@ -31,7 +31,7 @@ export default {
       const api = SUPABASE_URL + '/rest/v1/listings'
         + '?id=eq.' + id
         + '&is_sold=eq.false'
-        + '&select=id,title,price,description,image_urls,condition,location,sellers(store_name)'
+        + '&select=id,title,price,description,image_urls,condition,campus,location,sellers(store_name)'
         + '&limit=1';
       const res = await fetch(api, { headers: { apikey: SUPABASE_KEY } });
       if (res.ok) {
@@ -47,6 +47,7 @@ export default {
     const title = item.title + ' - ' + price;
     const bits = [price];
     if (item.condition) bits.push(item.condition === 'new' ? 'New' : 'Used');
+       if (item.campus) bits.push(item.campus);
     if (item.location) bits.push(item.location);
     if (item.sellers && item.sellers.store_name) bits.push('Sold by ' + item.sellers.store_name);
     let desc = bits.join(' · ');

@@ -83,7 +83,8 @@ function cardMetaHTML(item) {
     if (item.condition) tags.push(item.condition === 'new' ? 'New' : 'Used');
         if (item.negotiable) tags.push('Negotiable');
     const verifiedTag = item.sellers && item.sellers.verified ? '<span class="tag tag-verified">✓ Verified</span>' : '';
-    const loc = item.location ? `<span class="card-loc">📍 ${escapeHtml(item.location)}</span>` : '';
+    const place = [item.campus, item.location].filter(Boolean).join(' · ');
+    const loc = place ? `<span class="card-loc">📍 ${escapeHtml(place)}</span>` : '';
         return `<div class="card-meta">${verifiedTag}${tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>${loc}`;
 }
 
@@ -269,14 +270,14 @@ function openDetail(item) {
                                 <p class="detail-price">₦${Number(item.price).toLocaleString()}${item.negotiable ? '<small class="neg"> · Negotiable</small>' : ''}</p>
                 <div class="detail-facts">
                     ${item.condition ? `<span class="tag">${item.condition === 'new' ? 'New' : 'Used'}</span>` : ''}
-                    ${item.location ? `<span class="detail-loc">📍 ${escapeHtml(item.location)}</span>` : ''}
+                                      ${(item.campus || item.location) ? `<span class="detail-loc">📍 ${escapeHtml([item.campus, item.location].filter(Boolean).join(' · '))}</span>` : ''}
                 </div>
                 <h3>Description</h3>
                 <p class="detail-desc">${escapeHtml(item.description || 'No description provided.')}</p>
                                 <div class="detail-seller" data-seller-id="${escapeHtml(item.seller_id || '')}">
                                        <div class="avatar detail-avatar">${avatarInner(seller.avatar_url, initials)}</div>
                     <div>
-                                                <strong>${escapeHtml(storeName)}${seller.verified ? '<span class="v-badge" title="Verified seller: we confirmed their WhatsApp number">✓</span>' : ''}</strong>
+                                                <strong>${escapeHtml(storeName)}${seller.verified ? '<span class="v-badge" title="Verified seller">✓</span>' : ''}</strong>
                         ${posted ? `<span>Posted ${posted}</span>` : ''}
                     </div>
                 </div>
@@ -536,7 +537,10 @@ uploadForm.addEventListener('submit', async (e) => {
                 const price = parseFloat(document.getElementById('price').value);
         const condition = document.getElementById('condition').value;
         const negotiable = document.getElementById('negotiable').checked;
-        const itemLocation = document.getElementById('location').value.trim();
+                const itemLocation = document.getElementById('location').value.trim();
+        const campus = findCampus(document.getElementById('campus').value);
+        if (!campus) throw new Error('Please choose your school from the list. Pick "Other school" if it is not there.');
+        if (campus === OTHER_CAMPUS && !itemLocation) throw new Error(`Type your school's name in the "Hostel or area" box.`);
         const description = document.getElementById('description').value;
                 const imageFiles = selectedPhotos;
 
@@ -563,7 +567,7 @@ uploadForm.addEventListener('submit', async (e) => {
 
                 if (editingId) {
             const old = myListings[editingId];
-                        const updates = { title, description, price, category, condition, negotiable, location: itemLocation };
+                        const updates = { title, description, price, category, condition, negotiable, campus, location: itemLocation };
             if (imageUrls.length) updates.image_urls = imageUrls;
 
             const { data: updated, error: updErr } = await db
@@ -594,6 +598,7 @@ uploadForm.addEventListener('submit', async (e) => {
                                 category,
                 condition,
                 negotiable,
+                                campus,
                 location: itemLocation,
                 image_urls: imageUrls
             }]);
@@ -903,8 +908,8 @@ const FILTER_BAR_HTML = `
     </div>
     <div class="filter-panel" style="display: none;">
         <div class="filter-row">
-                        <label>Location
-                <select class="f-location"><option value="">All locations</option></select>
+                        <label>School
+                <select class="f-location"><option value="">All schools</option></select>
             </label>
             <label>Sort by
                 <select class="f-sort">
@@ -946,14 +951,15 @@ function applyFilters(items, f) {
         const price = Number(item.price);
         if (!isNaN(f.min) && price < f.min) return false;
                 if (!isNaN(f.max) && price > f.max) return false;
-        if (f.location && (item.location || '').trim().toLowerCase() !== f.location) return false;
+        if (f.location && (item.campus || '').trim().toLowerCase() !== f.location) return false;
         if (!f.text) return true;
         const hay = [
             item.title,
             item.description,
             categoryLabels[item.category] || item.category,
                         item.location,
-            item.condition,
+                        item.condition,
+            item.campus,
             item.sellers && item.sellers.store_name
         ].join(' ').toLowerCase();
         return f.text.split(/\s+/).every(word => hay.includes(word));
@@ -970,12 +976,12 @@ function updateLocationOptions(scope, items) {
     const current = select.value;
     const seen = new Map();
     items.forEach(i => {
-        const loc = (i.location || '').trim();
+                const loc = (i.campus || '').trim();
         if (loc && !seen.has(loc.toLowerCase())) seen.set(loc.toLowerCase(), loc);
     });
     if (current && !seen.has(current)) seen.set(current, current);
     const locs = [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-    select.innerHTML = '<option value="">All locations</option>' +
+    select.innerHTML = '<option value="">All schools</option>' +
         locs.map(([key, label]) => `<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`).join('');
     select.value = current;
 }
@@ -1310,7 +1316,7 @@ async function openSeller(sellerId) {
         <div class="seller-card">
                                             <div class="avatar seller-avatar">${avatarInner(seller.avatar_url, initials)}</div>
             <div class="seller-meta">
-                                <h2>${escapeHtml(seller.store_name)}${seller.verified ? '<span class="v-badge" >✓</span>' : ''}</h2>
+                                <h2>${escapeHtml(seller.store_name)}${seller.verified ? '<span class="v-badge" title="Verified seller">✓</span>' : ''}</h2>
                 <p>${joined ? 'Joined ' + joined + ' · ' : ''}${items.length} item${items.length === 1 ? '' : 's'} · <span id="seller-followers"></span></p>
             </div>
         </div>
@@ -1787,6 +1793,7 @@ function startEdit(item) {
     document.getElementById('condition').value = item.condition || 'used';
     document.getElementById('negotiable').checked = !!item.negotiable;
     document.getElementById('location').value = item.location || '';
+        document.getElementById('campus').value = item.campus || '';
     document.getElementById('images').value = '';
         document.getElementById('images').required = false;
     selectedPhotos = [];
@@ -1814,6 +1821,7 @@ async function startDuplicate(item, btn) {
         document.getElementById('condition').value = item.condition || 'used';
         document.getElementById('negotiable').checked = !!item.negotiable;
         document.getElementById('location').value = item.location || '';
+        document.getElementById('campus').value = item.campus || '';
         formError.textContent = '';
 
         // copy the photos into the preview, so the copy gets its own files
@@ -2180,7 +2188,7 @@ adminContent.addEventListener('click', async (e) => {
         window.open(itemLink(row.dataset.listing), '_blank', 'noopener');
         return;
     }
-    if (act === 'remove' && !confirm('Remove this listing for good? Its photos and reports are deleted too.')) return;     if (act === 'verify' && !confirm('Verify this seller? Only do this after you have contacted them on their WhatsApp number and they replied.')) return;
+    if (act === 'remove' && !confirm('Remove this listing for good? Its photos and reports are deleted too.')) return;
     if (act === 'suspend' && !confirm("Suspend this seller? Their items disappear from the site and they can't post until you unsuspend them.")) return;
 
     btn.disabled = true;
@@ -2675,6 +2683,21 @@ document.addEventListener('click', (e) => {
     e.preventDefault();
     openWhatsApp(btn.dataset.seller, btn.dataset.title);
 });
+
+// ---------- School list ----------
+const OTHER_CAMPUS = 'Other school';
+
+function findCampus(text) {
+    const wanted = String(text || '').trim().toLowerCase();
+    const list = typeof CAMPUS_LIST !== 'undefined' ? CAMPUS_LIST : [];
+    return list.find(c => c.toLowerCase() === wanted) || '';
+}
+
+(function fillCampusList() {
+    const list = document.getElementById('campus-list');
+    if (!list || typeof CAMPUS_LIST === 'undefined') return;
+    list.innerHTML = CAMPUS_LIST.map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
+})();
 
 // ---------- Startup ----------
 loadHomeTab('explore');
