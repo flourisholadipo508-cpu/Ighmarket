@@ -645,19 +645,73 @@ const TURNSTILE_SITE_KEY = '0x4AAAAAAFbuju2RgfXMXb_k';
 let captchaWidgetId = null;
 let captchaToken = '';
 
+const captchaStatus = document.getElementById('captcha-status');
+const captchaStatusText = document.getElementById('captcha-status-text');
+const captchaRetry = document.getElementById('captcha-retry');
+
+function showCaptchaStatus(text, failed = false) {
+    captchaStatus.style.display = 'flex';
+    captchaStatus.classList.toggle('failed', failed);
+    captchaStatusText.textContent = text;
+    captchaRetry.style.display = failed ? '' : 'none';
+}
+
+function hideCaptchaStatus() {
+    captchaStatus.classList.remove('failed');
+    captchaStatus.style.display = 'none';
+}
+
+// hide our spinner as soon as Cloudflare's own box appears
+function watchCaptchaFrame(tries = 0) {
+    if (document.querySelector('#captcha-box iframe')) {
+        hideCaptchaStatus();
+        return;
+    }
+    if (tries < 60) setTimeout(() => watchCaptchaFrame(tries + 1), 200);
+}
+
+function loadTurnstileScript() {
+    const s = document.createElement('script');
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    s.async = true;
+    document.head.appendChild(s);
+}
+
 function ensureCaptcha(tries = 0) {
-    if (captchaWidgetId !== null || tries > 40) return;
+    if (captchaWidgetId !== null) return;
     if (window.turnstile) {
+        showCaptchaStatus('Starting security check...');
         captchaWidgetId = window.turnstile.render('#captcha-box', {
             sitekey: TURNSTILE_SITE_KEY,
-            callback: (t) => { captchaToken = t; },
+            callback: (t) => { captchaToken = t; hideCaptchaStatus(); },
             'expired-callback': () => { captchaToken = ''; },
-            'error-callback': () => { captchaToken = ''; }
+            'error-callback': () => {
+                captchaToken = '';
+                showCaptchaStatus("The security check couldn't load. Check your internet connection.", true);
+            }
         });
+        watchCaptchaFrame();
+    } else if (tries > 100) { // about 30 seconds
+        showCaptchaStatus('The security check is taking too long. Check your internet connection.', true);
     } else {
+        if (tries === 0) showCaptchaStatus('Loading security check...');
         setTimeout(() => ensureCaptcha(tries + 1), 300);
     }
 }
+
+captchaRetry.addEventListener('click', () => {
+    if (window.turnstile) {
+        if (captchaWidgetId !== null) {
+            try { window.turnstile.remove(captchaWidgetId); } catch (err) {}
+        }
+    } else {
+        loadTurnstileScript();
+    }
+    captchaWidgetId = null;
+    captchaToken = '';
+    showCaptchaStatus('Loading security check...');
+    ensureCaptcha(0);
+});
 
 function resetCaptcha() {
     captchaToken = '';
