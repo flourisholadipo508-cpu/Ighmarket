@@ -648,6 +648,7 @@ let captchaToken = '';
 const captchaStatus = document.getElementById('captcha-status');
 const captchaStatusText = document.getElementById('captcha-status-text');
 const captchaRetry = document.getElementById('captcha-retry');
+let captchaTimer = null;
 
 function showCaptchaStatus(text, failed = false) {
     captchaStatus.style.display = 'flex';
@@ -657,17 +658,14 @@ function showCaptchaStatus(text, failed = false) {
 }
 
 function hideCaptchaStatus() {
+    clearTimeout(captchaTimer);
     captchaStatus.classList.remove('failed');
     captchaStatus.style.display = 'none';
 }
 
-// hide our spinner as soon as Cloudflare's own box appears
-function watchCaptchaFrame(tries = 0) {
-    if (document.querySelector('#captcha-box iframe')) {
-        hideCaptchaStatus();
-        return;
-    }
-    if (tries < 60) setTimeout(() => watchCaptchaFrame(tries + 1), 200);
+function captchaFailed(text) {
+    clearTimeout(captchaTimer);
+    showCaptchaStatus(text, true);
 }
 
 function loadTurnstileScript() {
@@ -680,19 +678,26 @@ function loadTurnstileScript() {
 function ensureCaptcha(tries = 0) {
     if (captchaWidgetId !== null) return;
     if (window.turnstile) {
-        showCaptchaStatus('Starting security check...');
+        showCaptchaStatus("Checking that you're human...");
         captchaWidgetId = window.turnstile.render('#captcha-box', {
             sitekey: TURNSTILE_SITE_KEY,
             callback: (t) => { captchaToken = t; hideCaptchaStatus(); },
             'expired-callback': () => { captchaToken = ''; },
+            'timeout-callback': () => { captchaToken = ''; },
+            // Cloudflare needs a click: get out of the way so the person can see its box
+            'before-interactive-callback': () => { hideCaptchaStatus(); },
             'error-callback': () => {
                 captchaToken = '';
-                showCaptchaStatus("The security check couldn't load. Check your internet connection.", true);
+                captchaFailed("The security check couldn't finish. Check your internet connection.");
             }
         });
-        watchCaptchaFrame();
+        // if nothing happens for 25 seconds, offer a retry
+        clearTimeout(captchaTimer);
+        captchaTimer = setTimeout(() => {
+            if (!captchaToken) captchaFailed('The security check is taking too long. Check your internet connection.');
+        }, 25000);
     } else if (tries > 100) { // about 30 seconds
-        showCaptchaStatus('The security check is taking too long. Check your internet connection.', true);
+        captchaFailed('The security check is taking too long. Check your internet connection.');
     } else {
         if (tries === 0) showCaptchaStatus('Loading security check...');
         setTimeout(() => ensureCaptcha(tries + 1), 300);
