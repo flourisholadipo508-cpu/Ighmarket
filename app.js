@@ -906,7 +906,7 @@ if (whatsapp_number.startsWith('0')) whatsapp_number = '234' + whatsapp_number.s
             };
             saveDemoUser(currentUser);
         } else if (authMode === 'signup') {
-                        if (!captchaToken) throw new Error('Please wait for the security check to finish, then try again.');
+                        if (!captchaToken) throw new Error('The security check is still loading. Please wait a few seconds, then tap again.');
             const { data, error } = await db.auth.signUp({
                 email,
                 password,
@@ -929,7 +929,7 @@ if (whatsapp_number.startsWith('0')) whatsapp_number = '234' + whatsapp_number.s
             }
             currentUser = userFromSupabase(data.session.user);
         } else {
-                        if (!captchaToken) throw new Error('Please wait for the security check to finish, then try again.');
+                        if (!captchaToken) throw new Error('The security check is still loading. Please wait a few seconds, then tap again.');
             const { data, error } = await db.auth.signInWithPassword({ email, password, options: { captchaToken } });
             if (error) throw error;
             currentUser = userFromSupabase(data.user);
@@ -2039,7 +2039,7 @@ document.getElementById('forgot-btn').addEventListener('click', async () => {
     if (!db) return;
         showAuthMessage('');
     if (!captchaToken) {
-        showAuthMessage('Please wait for the security check to finish, then try again.');
+        showAuthMessage('The security check is still loading. Please wait a few seconds, then tap again.');
         return;
     }
     const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/', captchaToken });
