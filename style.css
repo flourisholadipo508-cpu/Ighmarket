@@ -828,3 +828,15 @@ body.is-admin .f-save,
 body.is-admin #saved-box,
 body.is-admin #nav-sell-header,
 body.is-admin #nav-wishlist { display: none !important; }
+
+/* Security check loader */
+.captcha-wrap { position: relative; margin: 4px 0 14px 0; min-height: 65px; }
+.captcha-wrap .captcha-box { margin: 0; }
+.captcha-status { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 10px; padding: 0 14px; border: 1px solid #c5d0e0; border-radius: 8px; background: #FFFFFF; color: #4a5b78; font-size: 14px; z-index: 1; }
+.captcha-status .spinner-dark { width: 20px; height: 20px; border-width: 3px; margin: 0; flex-shrink: 0; }
+.captcha-status .link-btn { margin-left: auto; font-size: 14px; }
+.captcha-status.failed { position: static; flex-wrap: wrap; padding: 12px 14px; border-color: #c62828; color: #c62828; }
+.captcha-status.failed .spinner-dark { display: none; }
+.captcha-status.failed + .captcha-box { display: none; }
+[data-theme="dark"] .captcha-status { background: #131C2E; border-color: #34476B; color: #A9B8D0; }
+[data-theme="dark"] .captcha-status.failed { border-color: #FF7B7B; color: #FF7B7B; }
